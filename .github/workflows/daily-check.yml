@@ -10,19 +10,140 @@ jobs:
   check-conditions:
     runs-on: ubuntu-latest
     steps:
-      - name: Check surf conditions
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
         run: |
-          response=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.NETLIFY_SITE_URL }}/api/check-forecast" \
-            -H "Content-Type: application/json" \
-            -d '{"checkType": "scheduled"}')
-          
-          http_code=$(echo "$response" | tail -n1)
-          content=$(echo "$response" | sed '$d')
-          
-          echo "Response code: $http_code"
-          echo "Response content: $content"
-          
-          if [ "$http_code" -ne 200 ]; then
-            echo "Error: Received HTTP status $http_code"
-            exit 1
-          fi 
+          npm install cheerio
+          npm install @emailjs/browser
+
+      - name: Check surf conditions
+        env:
+          NEXT_PUBLIC_EMAILJS_SERVICE_ID: ${{ secrets.EMAILJS_SERVICE_ID }}
+          NEXT_PUBLIC_EMAILJS_TEMPLATE_ID: ${{ secrets.EMAILJS_TEMPLATE_ID }}
+          NEXT_PUBLIC_EMAILJS_PUBLIC_KEY: ${{ secrets.EMAILJS_PUBLIC_KEY }}
+          NEXT_PUBLIC_TARGET_BEACH: "Long-Beach_6"
+          NEXT_PUBLIC_SURF_FORECAST_URL: "https://www.surf-forecast.com"
+        run: |
+          node -e '
+          const cheerio = require("cheerio");
+          const emailjs = require("@emailjs/browser");
+
+          const SURF_CONDITIONS = {
+            good: {
+              waveHeight: { min: 1, max: 2 },
+              wave: {
+                preferredDirections: ["S", "SW", "W"],
+                periodMin: 12,
+                periodMax: 21
+              },
+              wind: { maxSpeed: 15 }
+            }
+          };
+
+          async function scrapeSurfConditions(beach) {
+            try {
+              const response = await fetch(`${process.env.NEXT_PUBLIC_SURF_FORECAST_URL}/breaks/${beach}/forecasts/latest`);
+              const html = await response.text();
+              const $ = cheerio.load(html);
+              
+              // Get current conditions
+              const waveHeight = parseFloat($(".break-forecast .swell-icon .size").first().text()) || 0;
+              const wavePeriod = parseInt($(".break-forecast .swell-icon .period").first().text()) || 0;
+              const waveDirection = $(".break-forecast .swell-icon .direction").first().text().trim();
+              const windDirection = $(".break-forecast .wind-icon .direction").first().text().trim();
+              const windSpeed = parseInt($(".break-forecast .wind-icon .speed").first().text()) || 0;
+              
+              return {
+                waveHeight,
+                wavePeriod,
+                waveDirection,
+                windDirection,
+                windSpeed
+              };
+            } catch (error) {
+              console.error("Error scraping conditions:", error);
+              throw error;
+            }
+          }
+
+          function areFavorableConditions(conditions, criteria) {
+            const { wave, wind } = {
+              wave: {
+                height: conditions.waveHeight,
+                period: conditions.wavePeriod,
+                direction: conditions.waveDirection
+              },
+              wind: {
+                speed: conditions.windSpeed,
+                direction: conditions.windDirection
+              }
+            };
+
+            console.log("Checking conditions:", { wave, wind });
+            console.log("Against criteria:", criteria.good);
+
+            const checks = {
+              height: wave.height >= criteria.good.waveHeight.min && wave.height <= criteria.good.waveHeight.max,
+              direction: criteria.good.wave.preferredDirections.includes(wave.direction),
+              period: wave.period >= criteria.good.wave.periodMin && wave.period <= criteria.good.wave.periodMax,
+              windSpeed: wind.speed <= criteria.good.wind.maxSpeed,
+              windDirection: ["E", "ENE", "ESE"].includes(wind.direction), // Offshore winds
+              waveHeight: wave.height,
+              waveDirection: wave.direction,
+              wavePeriod: wave.period,
+              windDir: wind.direction
+            };
+
+            console.log("Condition checks:", checks);
+
+            const isGood = checks.height && checks.direction && checks.period && checks.windSpeed && checks.windDirection;
+            
+            return { isGood };
+          }
+
+          async function sendEmail(conditions) {
+            try {
+              emailjs.init(process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY);
+              
+              const response = await emailjs.send(
+                process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
+                process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
+                {} // Template is static
+              );
+              
+              console.log("Email sent successfully:", response);
+            } catch (error) {
+              console.error("Error sending email:", error);
+              throw error;
+            }
+          }
+
+          async function main() {
+            try {
+              const conditions = await scrapeSurfConditions(process.env.NEXT_PUBLIC_TARGET_BEACH);
+              console.log("Scraped conditions:", conditions);
+              
+              const { isGood } = areFavorableConditions(conditions, SURF_CONDITIONS);
+              console.log("Conditions favorable:", isGood);
+              
+              if (isGood) {
+                await sendEmail(conditions);
+                console.log("Email notification sent");
+              } else {
+                console.log("Conditions not favorable, skipping email");
+              }
+            } catch (error) {
+              console.error("Error in main:", error);
+              process.exit(1);
+            }
+          }
+
+          main();
+          ' 

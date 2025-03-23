@@ -3,85 +3,38 @@ import { scrapeSurfConditions, areFavorableConditions } from '@/app/utils/scrape
 import { sendSurfAlert } from '@/app/utils/emailService';
 import { SURF_CONDITIONS } from '@/app/config/surfConditions';
 
-export async function GET() {
+// In-memory store for last check time
+let lastCheckTime = 0;
+const COOLDOWN_PERIOD = 15 * 60 * 1000; // 15 minutes in milliseconds
+
+async function handleForecastCheck(isScheduled = false) {
   try {
+    // Check cooldown period for non-scheduled checks
+    const now = Date.now();
+    if (!isScheduled && now - lastCheckTime < COOLDOWN_PERIOD) {
+      const minutesRemaining = Math.ceil((COOLDOWN_PERIOD - (now - lastCheckTime)) / 60000);
+      return NextResponse.json({
+        success: false,
+        error: `Please wait ${minutesRemaining} minutes before checking again`,
+        cooldownRemaining: minutesRemaining
+      }, { status: 429 });
+    }
+
     console.log('Starting forecast check for beach:', SURF_CONDITIONS.beach);
-    console.log('Using forecast URL:', process.env.NEXT_PUBLIC_SURF_FORECAST_URL);
+    
+    // Update last check time for non-scheduled checks
+    if (!isScheduled) {
+      lastCheckTime = now;
+    }
     
     // Get current conditions
     const conditions = await scrapeSurfConditions(SURF_CONDITIONS.beach);
-    console.log('Raw scraped conditions:', conditions);
     
     // Check if conditions are favorable
     const { isGood, isPerfect } = areFavorableConditions(conditions, SURF_CONDITIONS);
-    console.log('Conditions check:', {
-      waveHeightGood: conditions.waveHeight >= SURF_CONDITIONS.good.waveHeight.min && 
-                      conditions.waveHeight <= SURF_CONDITIONS.good.waveHeight.max,
-      wavePeriodGood: conditions.wavePeriod >= SURF_CONDITIONS.good.wave.periodMin && 
-                      conditions.wavePeriod <= SURF_CONDITIONS.good.wave.periodMax,
-      waveDirectionGood: SURF_CONDITIONS.good.wave.preferredDirections.includes(conditions.waveDirection),
-      windSpeedGood: conditions.windSpeed <= SURF_CONDITIONS.good.wind.maxSpeed,
-      isGood,
-      isPerfect
-    });
 
-    return NextResponse.json({
-      success: true,
-      conditions: {
-        ...conditions,
-        isGood,
-        isPerfect
-      },
-      debug: {
-        beach: SURF_CONDITIONS.beach,
-        criteria: {
-          good: {
-            waveHeight: SURF_CONDITIONS.good.waveHeight,
-            wavePeriod: {
-              min: SURF_CONDITIONS.good.wave.periodMin,
-              max: SURF_CONDITIONS.good.wave.periodMax
-            },
-            waveDirections: SURF_CONDITIONS.good.wave.preferredDirections,
-            windSpeed: SURF_CONDITIONS.good.wind.maxSpeed
-          },
-          perfect: {
-            waveHeight: SURF_CONDITIONS.perfect.waveHeight,
-            wavePeriod: {
-              min: SURF_CONDITIONS.perfect.wave.periodMin,
-              max: SURF_CONDITIONS.perfect.wave.periodMax
-            },
-            waveDirections: SURF_CONDITIONS.perfect.wave.preferredDirections,
-            windSpeed: SURF_CONDITIONS.perfect.wind.maxSpeed
-          }
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Error in forecast API:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        error: error.message,
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-        debug: {
-          beach: SURF_CONDITIONS.beach,
-          url: process.env.NEXT_PUBLIC_SURF_FORECAST_URL
-        }
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// Optional: Add POST method to manually trigger checks or update preferences
-export async function POST(request) {
-  try {
-    const body = await request.json();
-    const conditions = await scrapeSurfConditions(SURF_CONDITIONS.beach);
-    const { isGood, isPerfect } = areFavorableConditions(conditions, SURF_CONDITIONS);
-    
-    // If this is a scheduled check, attempt to send email notification
-    if (body.checkType === 'scheduled') {
+    // Only send email for scheduled checks
+    if (isScheduled) {
       try {
         await sendSurfAlert({
           ...conditions,
@@ -91,7 +44,6 @@ export async function POST(request) {
         });
       } catch (emailError) {
         console.error('Error sending email notification:', emailError);
-        // Don't fail the request if email fails
       }
     }
     
@@ -104,9 +56,19 @@ export async function POST(request) {
       }
     });
   } catch (error) {
+    console.error('Error in forecast API:', error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
     );
   }
+}
+
+export async function GET() {
+  return handleForecastCheck(false);
+}
+
+export async function POST(request) {
+  const body = await request.json();
+  return handleForecastCheck(body.checkType === 'scheduled');
 } 
