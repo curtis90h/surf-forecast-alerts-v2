@@ -29,12 +29,13 @@ jobs:
           NEXT_PUBLIC_EMAILJS_SERVICE_ID: ${{ secrets.EMAILJS_SERVICE_ID }}
           NEXT_PUBLIC_EMAILJS_TEMPLATE_ID: ${{ secrets.EMAILJS_TEMPLATE_ID }}
           NEXT_PUBLIC_EMAILJS_PUBLIC_KEY: ${{ secrets.EMAILJS_PUBLIC_KEY }}
+          NEXT_PUBLIC_EMAILJS_PRIVATE_KEY: ${{ secrets.EMAILJS_PRIVATE_KEY }}
           NEXT_PUBLIC_TARGET_BEACH: "Long-Beach_6"
           NEXT_PUBLIC_SURF_FORECAST_URL: "https://www.surf-forecast.com"
         run: |
           node -e '
           const cheerio = require("cheerio");
-          const emailjs = require("@emailjs/nodejs");
+          const { init, send } = require("@emailjs/nodejs");
           const axios = require("axios");
 
           const COMPASS_DIRECTIONS = [
@@ -124,8 +125,12 @@ jobs:
               let currentWaveDirection = "N/A";
               
               let hasGoodConditions = false;
+              let goodConditionsDetails = [];
 
               waveCells.each((index, cell) => {
+                // Only process first 21 cells (7 days * 3 periods)
+                if (index >= 21) return;
+
                 const $cell = $(cell);
                 const dayIndex = Math.floor(index / 3);
                 const dayKey = dayIndex === 0 ? "today" : `day${dayIndex + 1}`;
@@ -180,6 +185,11 @@ jobs:
                   if (isGood) {
                     hasGoodConditions = true;
                     console.log(`Found good conditions on ${formattedDate} ${timeOfDay}:`, timeData);
+                    goodConditionsDetails.push({
+                      date: formattedDate,
+                      timeOfDay,
+                      ...timeData
+                    });
                   }
 
                   detailedForecast[dayKey][timeOfDay] = timeData;
@@ -196,7 +206,8 @@ jobs:
                 windSpeed: currentWindSpeed,
                 timestamp: new Date().toISOString(),
                 detailedForecast,
-                hasGoodConditions
+                hasGoodConditions,
+                goodConditionsDetails
               };
             } catch (error) {
               console.error("Error scraping conditions:", error.message);
@@ -251,17 +262,25 @@ jobs:
           async function sendEmail(conditions) {
             try {
               console.log("Initializing EmailJS...");
-              emailjs.init({
+              
+              // Initialize with private key for Node.js environment
+              init({
                 publicKey: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY,
+                privateKey: process.env.NEXT_PUBLIC_EMAILJS_PRIVATE_KEY,
               });
               
+              // Create a message with the good conditions details
+              const goodConditionsText = conditions.goodConditionsDetails
+                .map(c => `${c.date} ${c.timeOfDay}: ${c.wave.height}m ${c.wave.direction} @ ${c.wave.period}s, wind ${c.wind.speed}km/h ${c.wind.direction}`)
+                .join("\n");
+
               console.log("Sending email...");
-              const response = await emailjs.send(
+              const response = await send(
                 process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
                 process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
-                {}, // Template is static
                 {
-                  publicKey: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY,
+                  good_conditions: goodConditionsText,
+                  message: "Good surf conditions found!"
                 }
               );
               
