@@ -5,7 +5,7 @@ import { SURF_CONDITIONS } from '@/app/config/surfConditions';
 
 // In-memory store for last check time
 let lastCheckTime = 0;
-const COOLDOWN_PERIOD = 15 * 60 * 1000; // 15 minutes in milliseconds
+const COOLDOWN_PERIOD = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 async function handleForecastCheck(isScheduled = false) {
   try {

@@ -181,7 +181,7 @@ export default function Home() {
                             <div className="space-y-1">
                               <div className="font-medium">{dayData.morning.wave.height}m {dayData.morning.wave.direction}</div>
                               <div className="text-gray-500">{dayData.morning.wave.period}s</div>
-                              <div className="text-gray-500">{dayData.morning.wind.speed}km/h {dayData.morning.wind.direction}</div>
+                              <div className="text-gray-500">Wind {dayData.morning.wind.speed}km/h {dayData.morning.wind.direction}</div>
                             </div>
                           </td>
                         )
@@ -199,7 +199,7 @@ export default function Home() {
                             <div className="space-y-1">
                               <div className="font-medium">{dayData.afternoon.wave.height}m {dayData.afternoon.wave.direction}</div>
                               <div className="text-gray-500">{dayData.afternoon.wave.period}s</div>
-                              <div className="text-gray-500">{dayData.afternoon.wind.speed}km/h {dayData.afternoon.wind.direction}</div>
+                              <div className="text-gray-500">Wind {dayData.afternoon.wind.speed}km/h {dayData.afternoon.wind.direction}</div>
                             </div>
                           </td>
                         )
@@ -217,7 +217,7 @@ export default function Home() {
                             <div className="space-y-1">
                               <div className="font-medium">{dayData.night.wave.height}m {dayData.night.wave.direction}</div>
                               <div className="text-gray-500">{dayData.night.wave.period}s</div>
-                              <div className="text-gray-500">{dayData.night.wind.speed}km/h {dayData.night.wind.direction}</div>
+                              <div className="text-gray-500">Wind {dayData.night.wind.speed}km/h {dayData.night.wind.direction}</div>
                             </div>
                           </td>
                         )

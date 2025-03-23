@@ -56,7 +56,7 @@ jobs:
             perfect: {
               waveHeight: { min: 1, max: 1.5 },
               wave: {
-                preferredDirections: ["S", "SSW", "SW", "WSW", "W"],
+                preferredDirections: ["S", "SSW", "SW"],
                 periodMin: 15,
                 periodMax: 21
               },
@@ -64,13 +64,13 @@ jobs:
             }
           };
 
-          function getOpposingWindDirections(waveDirection) {
+          function getOpposingWindDirections(waveDirection, tolerance = 2) {
             const waveIndex = COMPASS_DIRECTIONS.indexOf(waveDirection);
             if (waveIndex === -1) return [];
             
             const oppositeIndex = (waveIndex + 8) % 16;
             const validWindDirections = [];
-            for (let i = -2; i <= 2; i++) {
+            for (let i = -tolerance; i <= tolerance; i++) {
               const windIndex = (oppositeIndex + i + 16) % 16;
               validWindDirections.push(COMPASS_DIRECTIONS[windIndex]);
             }
@@ -181,7 +181,7 @@ jobs:
                     formattedDate: formattedDate
                   };
 
-                  const { isGood } = areFavorableConditions({
+                  const { isGood, isPerfect } = areFavorableConditions({
                     waveHeight: timeData.wave.height,
                     wavePeriod: timeData.wave.period,
                     waveDirection: timeData.wave.direction,
@@ -190,6 +190,7 @@ jobs:
                   }, SURF_CONDITIONS);
 
                   timeData.isGood = isGood;
+                  timeData.isPerfect = isPerfect;
                   
                   if (isGood) {
                     hasGoodConditions = true;
@@ -241,31 +242,47 @@ jobs:
               }
             };
 
-            const validWindDirections = getOpposingWindDirections(wave.direction);
+            // Get valid wind directions with appropriate tolerance
+            const validWindDirections = getOpposingWindDirections(wave.direction, 2); // For good conditions
+            const validPerfectWindDirections = getOpposingWindDirections(wave.direction, 1); // For perfect conditions
             console.log(`Wave direction: ${wave.direction}, Valid wind directions:`, validWindDirections);
+            console.log(`Perfect wind directions:`, validPerfectWindDirections);
 
             const checks = {
               height: wave.height >= criteria.good.waveHeight.min && wave.height <= criteria.good.waveHeight.max,
               direction: criteria.good.wave.preferredDirections.includes(wave.direction),
               period: wave.period >= criteria.good.wave.periodMin && wave.period <= criteria.good.wave.periodMax,
               windSpeed: wind.speed <= criteria.good.wind.maxSpeed,
-              windDirection: validWindDirections.includes(wind.direction),
-              waveHeight: wave.height,
-              waveDirection: wave.direction,
-              wavePeriod: wave.period,
-              windDir: wind.direction
+              windDirection: validWindDirections.includes(wind.direction)
+            };
+
+            const perfectChecks = {
+              height: wave.height >= criteria.perfect.waveHeight.min && wave.height <= criteria.perfect.waveHeight.max,
+              direction: criteria.perfect.wave.preferredDirections.includes(wave.direction),
+              period: wave.period >= criteria.perfect.wave.periodMin && wave.period <= criteria.perfect.wave.periodMax,
+              windSpeed: wind.speed <= criteria.perfect.wind.maxSpeed,
+              windDirection: validPerfectWindDirections.includes(wind.direction)
             };
 
             const isGood = checks.height && checks.direction && checks.period && checks.windSpeed && checks.windDirection;
+            const isPerfect = perfectChecks.height && perfectChecks.direction && perfectChecks.period && 
+                            perfectChecks.windSpeed && perfectChecks.windDirection;
             
             if (!isGood) {
-              console.log("Failed checks:", Object.entries(checks)
+              console.log("Failed good condition checks:", Object.entries(checks)
+                .filter(([_, value]) => !value)
+                .map(([key]) => key)
+                .join(", "));
+            }
+
+            if (!isPerfect && isGood) {
+              console.log("Failed perfect condition checks:", Object.entries(perfectChecks)
                 .filter(([_, value]) => !value)
                 .map(([key]) => key)
                 .join(", "));
             }
             
-            return { isGood };
+            return { isGood, isPerfect };
           }
 
           async function sendEmail(conditions) {
@@ -275,17 +292,18 @@ jobs:
               // Create a message with the good conditions details
               const goodConditionsText = conditions.goodConditionsDetails
                 .map(c => {
-                  // Check if conditions meet perfect criteria
+                  // Check if conditions meet perfect criteria using the same criteria as the website
                   const isPerfect = c.wave.height >= SURF_CONDITIONS.perfect.waveHeight.min &&
                                   c.wave.height <= SURF_CONDITIONS.perfect.waveHeight.max &&
                                   c.wave.period >= SURF_CONDITIONS.perfect.wave.periodMin &&
                                   c.wave.period <= SURF_CONDITIONS.perfect.wave.periodMax &&
                                   SURF_CONDITIONS.perfect.wave.preferredDirections.includes(c.wave.direction) &&
-                                  c.wind.speed <= SURF_CONDITIONS.perfect.wind.maxSpeed;
+                                  c.wind.speed <= SURF_CONDITIONS.perfect.wind.maxSpeed &&
+                                  getOpposingWindDirections(c.wave.direction, 1).includes(c.wind.direction);
 
                   const perfectTag = isPerfect ? " 🏆 PERFECT CONDITIONS!" : "";
                   
-                  return `${c.date} ${c.timeOfDay.charAt(0).toUpperCase() + c.timeOfDay.slice(1)}: ${c.wave.height}m ${c.wave.direction} @ ${c.wave.period}s, wind ${c.wind.speed}km/h ${c.wind.direction}${perfectTag}`;
+                  return `${c.date} ${c.timeOfDay.charAt(0).toUpperCase() + c.timeOfDay.slice(1)}: ${c.wave.height}m ${c.wave.direction} @ ${c.wave.period}s, Wind ${c.wind.speed}km/h ${c.wind.direction}${perfectTag}`;
                 })
                 .join("\n");
 
