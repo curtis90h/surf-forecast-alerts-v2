@@ -43,11 +43,11 @@ export default function Home() {
             </div>
             <div>
               <p className="text-gray-600">Wave Height Range</p>
-              <p className="font-medium">{SURF_CONDITIONS.waveHeight.min} - {SURF_CONDITIONS.waveHeight.max} ft</p>
+              <p className="font-medium">{SURF_CONDITIONS.waveHeight.min} - {SURF_CONDITIONS.waveHeight.max} m</p>
             </div>
             <div>
               <p className="text-gray-600">Max Wind Speed</p>
-              <p className="font-medium">{SURF_CONDITIONS.wind.maxSpeed} mph</p>
+              <p className="font-medium">{SURF_CONDITIONS.wind.maxSpeed} km/h</p>
             </div>
             <div>
               <p className="text-gray-600">Preferred Wind Directions</p>
@@ -58,12 +58,12 @@ export default function Home() {
 
         {/* Current Conditions Card */}
         <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-semibold text-gray-800">Current Conditions</h2>
             <button
               onClick={checkConditions}
               disabled={loading}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Checking...' : 'Check Now'}
             </button>
@@ -76,25 +76,46 @@ export default function Home() {
           )}
 
           {conditions && !error && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-gray-600">Wave Height</p>
-                <p className="font-medium">{conditions.conditions.waveHeight} ft</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Wave Conditions</h3>
+                <div className="space-y-2">
+                  <p className="text-gray-600">Height: <span className="font-medium">{conditions.conditions.waveHeight} m</span></p>
+                  <p className="text-gray-600">Period: <span className="font-medium">{conditions.conditions.wavePeriod} s</span></p>
+                  <p className="text-gray-600">Rating: <span className="font-medium">{conditions.conditions.rating}</span></p>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-600">Wind Direction</p>
-                <p className="font-medium">{conditions.conditions.windDirection}</p>
+
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Wind Conditions</h3>
+                <div className="space-y-2">
+                  <p className="text-gray-600">Speed: <span className="font-medium">{conditions.conditions.windSpeed} km/h</span></p>
+                  <p className="text-gray-600">Direction: <span className="font-medium">{conditions.conditions.windDirection}</span></p>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-600">Wind Speed</p>
-                <p className="font-medium">{conditions.conditions.windSpeed} mph</p>
+
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="text-lg font-semibold text-blue-900 mb-2">Other Conditions</h3>
+                <div className="space-y-2">
+                  <p className="text-gray-600">Water Temp: <span className="font-medium">{conditions.conditions.temperature}°C</span></p>
+                  <p className="text-gray-600">Status: 
+                    <span className={`font-medium ${conditions.isFavorable ? 'text-green-600' : 'text-yellow-600'} ml-2`}>
+                      {conditions.isFavorable ? '🏄‍♂️ Favorable' : 'Not Ideal'}
+                    </span>
+                  </p>
+                  <p className="text-gray-600 text-sm">Last Updated: 
+                    <span className="font-medium ml-2">
+                      {new Date(conditions.conditions.timestamp).toLocaleTimeString()}
+                    </span>
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-600">Conditions Status</p>
-                <p className={`font-medium ${conditions.isFavorable ? 'text-green-600' : 'text-yellow-600'}`}>
-                  {conditions.isFavorable ? '🏄‍♂️ Favorable' : 'Not Ideal'}
-                </p>
-              </div>
+            </div>
+          )}
+
+          {loading && (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             </div>
           )}
         </div>
