@@ -7,6 +7,8 @@ export default function Home() {
   const [conditions, setConditions] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showGoodCriteria, setShowGoodCriteria] = useState(false);
+  const [showPerfectCriteria, setShowPerfectCriteria] = useState(false);
 
   const checkConditions = async () => {
     try {
@@ -16,8 +18,11 @@ export default function Home() {
       const data = await response.json();
       
       if (!data.success) throw new Error(data.error);
+      console.log('Received data:', data);
+      console.log('Detailed forecast:', data.conditions.detailedForecast);
       setConditions(data);
     } catch (err) {
+      console.error('Error checking conditions:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -29,96 +34,305 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-blue-50 to-blue-100 p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold text-blue-900 mb-8">Surf Forecast Alert</h1>
-        
-        {/* Configuration Card */}
-        <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-4">Current Configuration</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-gray-600">Target Beach</p>
-              <p className="font-medium">{SURF_CONDITIONS.beach}</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Wave Height Range</p>
-              <p className="font-medium">{SURF_CONDITIONS.waveHeight.min} - {SURF_CONDITIONS.waveHeight.max} m</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Max Wind Speed</p>
-              <p className="font-medium">{SURF_CONDITIONS.wind.maxSpeed} km/h</p>
-            </div>
-            <div>
-              <p className="text-gray-600">Preferred Wind Directions</p>
-              <p className="font-medium">{SURF_CONDITIONS.wind.preferredDirections.join(', ')}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Current Conditions Card */}
-        <div className="bg-white rounded-lg shadow-lg p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold text-gray-800">Current Conditions</h2>
+    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200">
+      {/* Header Section */}
+      <div className="bg-white/80 backdrop-blur-sm shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex justify-between items-center">
+            <h1 className="text-3xl md:text-4xl font-bold text-blue-900">
+              Surf Forecast
+              <span className="block text-lg font-normal text-blue-600 mt-1">
+                {SURF_CONDITIONS.beach}
+              </span>
+            </h1>
             <button
               onClick={checkConditions}
               disabled={loading}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
             >
-              {loading ? 'Checking...' : 'Check Now'}
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  <span>Updating...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>Refresh</span>
+                </>
+              )}
             </button>
           </div>
-
-          {error && (
-            <div className="bg-red-50 text-red-700 p-4 rounded mb-4">
-              {error}
-            </div>
-          )}
-
-          {conditions && !error && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">Wave Conditions</h3>
-                <div className="space-y-2">
-                  <p className="text-gray-600">Height: <span className="font-medium">{conditions.conditions.waveHeight} m</span></p>
-                  <p className="text-gray-600">Period: <span className="font-medium">{conditions.conditions.wavePeriod} s</span></p>
-                  <p className="text-gray-600">Rating: <span className="font-medium">{conditions.conditions.rating}</span></p>
-                </div>
-              </div>
-
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">Wind Conditions</h3>
-                <div className="space-y-2">
-                  <p className="text-gray-600">Speed: <span className="font-medium">{conditions.conditions.windSpeed} km/h</span></p>
-                  <p className="text-gray-600">Direction: <span className="font-medium">{conditions.conditions.windDirection}</span></p>
-                </div>
-              </div>
-
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h3 className="text-lg font-semibold text-blue-900 mb-2">Other Conditions</h3>
-                <div className="space-y-2">
-                  <p className="text-gray-600">Water Temp: <span className="font-medium">{conditions.conditions.temperature}°C</span></p>
-                  <p className="text-gray-600">Status: 
-                    <span className={`font-medium ${conditions.isFavorable ? 'text-green-600' : 'text-yellow-600'} ml-2`}>
-                      {conditions.isFavorable ? '🏄‍♂️ Favorable' : 'Not Ideal'}
-                    </span>
-                  </p>
-                  <p className="text-gray-600 text-sm">Last Updated: 
-                    <span className="font-medium ml-2">
-                      {new Date(conditions.conditions.timestamp).toLocaleTimeString()}
-                    </span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {loading && (
-            <div className="flex justify-center items-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-            </div>
-          )}
         </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {conditions && !error && (
+          <>
+            {/* Current Conditions Card */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden">
+              <div className="px-6 py-5 border-b border-gray-200">
+                <h2 className="text-2xl font-semibold text-gray-900">Current Conditions</h2>
+              </div>
+              <div className="px-6 py-5">
+                <div className={`rounded-xl p-6 ${
+                  conditions.conditions.isPerfect ? 'bg-green-50/80 ring-2 ring-green-500/20' : 
+                  conditions.conditions.isGood ? 'bg-blue-50/80 ring-2 ring-blue-500/20' : 
+                  'bg-gray-50/80'
+                }`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-xl font-semibold text-gray-900">Conditions</h3>
+                    {conditions.conditions.isPerfect && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                        🏄‍♂️ Perfect
+                      </span>
+                    )}
+                    {!conditions.conditions.isPerfect && conditions.conditions.isGood && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                        🌊 Good
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Wave Height</p>
+                      <p className="text-lg font-medium text-gray-900">{conditions.conditions.waveHeight} m</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Wave Period</p>
+                      <p className="text-lg font-medium text-gray-900">{conditions.conditions.wavePeriod} s</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Wave Direction</p>
+                      <p className="text-lg font-medium text-gray-900">{conditions.conditions.waveDirection}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Wind Speed</p>
+                      <p className="text-lg font-medium text-gray-900">{conditions.conditions.windSpeed} km/h</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Wind Direction</p>
+                      <p className="text-lg font-medium text-gray-900">{conditions.conditions.windDirection}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Criteria Cards */}
+            <div className="space-y-4">
+              {/* Good Conditions Criteria */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden">
+                <button 
+                  onClick={() => setShowGoodCriteria(!showGoodCriteria)}
+                  className="w-full px-6 py-4 bg-blue-50 border-b border-blue-100 flex justify-between items-center"
+                >
+                  <h2 className="text-xl font-semibold text-blue-900">Good Conditions</h2>
+                  <svg 
+                    className={`w-5 h-5 transform transition-transform ${showGoodCriteria ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showGoodCriteria && (
+                  <div className="px-6 py-5 space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Height</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.good.waveHeight.min} - {SURF_CONDITIONS.good.waveHeight.max} m
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Period</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.good.wave.periodMin} - {SURF_CONDITIONS.good.wave.periodMax} s
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Direction</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.good.wave.preferredDirections.join(', ')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wind Speed</p>
+                        <p className="text-base font-medium text-gray-900">
+                          Up to {SURF_CONDITIONS.good.wind.maxSpeed} km/h
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wind Direction</p>
+                        <p className="text-base font-medium text-gray-900">
+                          Offshore to Cross-Shore (±2 directions)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Perfect Conditions Criteria */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden">
+                <button 
+                  onClick={() => setShowPerfectCriteria(!showPerfectCriteria)}
+                  className="w-full px-6 py-4 bg-green-50 border-b border-green-100 flex justify-between items-center"
+                >
+                  <h2 className="text-xl font-semibold text-green-900">Perfect Conditions</h2>
+                  <svg 
+                    className={`w-5 h-5 transform transition-transform ${showPerfectCriteria ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showPerfectCriteria && (
+                  <div className="px-6 py-5 space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Height</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.perfect.waveHeight.min} - {SURF_CONDITIONS.perfect.waveHeight.max} m
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Period</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.perfect.wave.periodMin} - {SURF_CONDITIONS.perfect.wave.periodMax} s
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Direction</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.perfect.wave.preferredDirections.join(', ')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wind Speed</p>
+                        <p className="text-base font-medium text-gray-900">
+                          Up to {SURF_CONDITIONS.perfect.wind.maxSpeed} km/h
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wind Direction</p>
+                        <p className="text-base font-medium text-gray-900">
+                          Offshore (±1 direction)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Detailed Forecast Table */}
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden">
+              <div className="px-6 py-5 border-b border-gray-200">
+                <h2 className="text-2xl font-semibold text-gray-900">7-Day Detailed Forecast</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                      {Object.entries(conditions.conditions.detailedForecast).map(([dayKey, dayData], index) => (
+                        dayData.morning && (
+                          <th key={dayKey} scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            {dayData.morning.formattedDate}
+                          </th>
+                        )
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {/* Morning Row */}
+                    <tr>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Morning</td>
+                      {Object.entries(conditions.conditions.detailedForecast).map(([dayKey, dayData]) => (
+                        dayData.morning && (
+                          <td key={`${dayKey}-morning`} className={`px-6 py-4 whitespace-nowrap text-sm ${
+                            dayData.morning.isPerfect ? 'bg-green-50' : 
+                            dayData.morning.isGood ? 'bg-blue-50' : ''
+                          }`}>
+                            <div className="space-y-1">
+                              <div className="font-medium">{dayData.morning.wave.height}m {dayData.morning.wave.direction}</div>
+                              <div className="text-gray-500">{dayData.morning.wave.period}s</div>
+                              <div className="text-gray-500">{dayData.morning.wind.speed}km/h {dayData.morning.wind.direction}</div>
+                            </div>
+                          </td>
+                        )
+                      ))}
+                    </tr>
+                    {/* Afternoon Row */}
+                    <tr>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Afternoon</td>
+                      {Object.entries(conditions.conditions.detailedForecast).map(([dayKey, dayData]) => (
+                        dayData.afternoon && (
+                          <td key={`${dayKey}-afternoon`} className={`px-6 py-4 whitespace-nowrap text-sm ${
+                            dayData.afternoon.isPerfect ? 'bg-green-50' : 
+                            dayData.afternoon.isGood ? 'bg-blue-50' : ''
+                          }`}>
+                            <div className="space-y-1">
+                              <div className="font-medium">{dayData.afternoon.wave.height}m {dayData.afternoon.wave.direction}</div>
+                              <div className="text-gray-500">{dayData.afternoon.wave.period}s</div>
+                              <div className="text-gray-500">{dayData.afternoon.wind.speed}km/h {dayData.afternoon.wind.direction}</div>
+                            </div>
+                          </td>
+                        )
+                      ))}
+                    </tr>
+                    {/* Night Row */}
+                    <tr>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">Night</td>
+                      {Object.entries(conditions.conditions.detailedForecast).map(([dayKey, dayData]) => (
+                        dayData.night && (
+                          <td key={`${dayKey}-night`} className={`px-6 py-4 whitespace-nowrap text-sm ${
+                            dayData.night.isPerfect ? 'bg-green-50' : 
+                            dayData.night.isGood ? 'bg-blue-50' : ''
+                          }`}>
+                            <div className="space-y-1">
+                              <div className="font-medium">{dayData.night.wave.height}m {dayData.night.wave.direction}</div>
+                              <div className="text-gray-500">{dayData.night.wave.period}s</div>
+                              <div className="text-gray-500">{dayData.night.wind.speed}km/h {dayData.night.wind.direction}</div>
+                            </div>
+                          </td>
+                        )
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {loading && !conditions && (
+          <div className="flex justify-center items-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+          </div>
+        )}
       </div>
     </main>
   );

@@ -1,0 +1,17 @@
+name: Daily Surf Check
+
+on:
+  schedule:
+    # Run at 8 AM Pacific Time (15:00 UTC)
+    - cron: '0 15 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  check-conditions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check surf conditions
+        run: |
+          curl -X POST ${{ secrets.NETLIFY_SITE_URL }}/api/check-forecast \
+          -H "Content-Type: application/json" \
+          -d '{"checkType": "scheduled"}' 
