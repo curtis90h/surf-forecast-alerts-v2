@@ -52,6 +52,15 @@ jobs:
                 periodMax: 21
               },
               wind: { maxSpeed: 15 }
+            },
+            perfect: {
+              waveHeight: { min: 1, max: 1.5 },
+              wave: {
+                preferredDirections: ["S", "SSW", "SW", "WSW", "W"],
+                periodMin: 15,
+                periodMax: 21
+              },
+              wind: { maxSpeed: 10 }
             }
           };
 
@@ -265,7 +274,19 @@ jobs:
               
               // Create a message with the good conditions details
               const goodConditionsText = conditions.goodConditionsDetails
-                .map(c => `${c.date} ${c.timeOfDay.charAt(0).toUpperCase() + c.timeOfDay.slice(1)}: ${c.wave.height}m ${c.wave.direction} @ ${c.wave.period}s, wind ${c.wind.speed}km/h ${c.wind.direction}`)
+                .map(c => {
+                  // Check if conditions meet perfect criteria
+                  const isPerfect = c.wave.height >= SURF_CONDITIONS.perfect.waveHeight.min &&
+                                  c.wave.height <= SURF_CONDITIONS.perfect.waveHeight.max &&
+                                  c.wave.period >= SURF_CONDITIONS.perfect.wave.periodMin &&
+                                  c.wave.period <= SURF_CONDITIONS.perfect.wave.periodMax &&
+                                  SURF_CONDITIONS.perfect.wave.preferredDirections.includes(c.wave.direction) &&
+                                  c.wind.speed <= SURF_CONDITIONS.perfect.wind.maxSpeed;
+
+                  const perfectTag = isPerfect ? " 🏆 PERFECT CONDITIONS!" : "";
+                  
+                  return `${c.date} ${c.timeOfDay.charAt(0).toUpperCase() + c.timeOfDay.slice(1)}: ${c.wave.height}m ${c.wave.direction} @ ${c.wave.period}s, wind ${c.wind.speed}km/h ${c.wind.direction}${perfectTag}`;
+                })
                 .join("\n");
 
               console.log("Sending email via REST API...");

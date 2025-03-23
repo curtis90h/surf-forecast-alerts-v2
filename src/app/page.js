@@ -19,7 +19,7 @@ export default function Home() {
       
       if (!data.success) {
         setError(data.error);
-        return; // Don't clear existing conditions on error
+        return; // Keep existing conditions by just returning here
       }
 
       console.log('Received data:', data);
@@ -28,7 +28,7 @@ export default function Home() {
     } catch (err) {
       console.error('Error checking conditions:', err);
       setError(err.message);
-      // Don't clear existing conditions on error
+      // Keep existing conditions by not clearing them
     } finally {
       setLoading(false);
     }
@@ -38,7 +38,7 @@ export default function Home() {
     checkConditions();
   }, []);
 
-  if (!conditions && !error) {
+  if (!conditions && !error && !loading) {
     return (
       <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
         <div className="relative py-3 sm:max-w-xl sm:mx-auto">
@@ -69,47 +69,36 @@ export default function Home() {
                 {SURF_CONDITIONS.beach}
               </span>
             </h1>
-            <button
-              onClick={checkConditions}
-              disabled={loading}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
-            >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                  <span>Updating...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span>Refresh</span>
-                </>
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex justify-end">
+                <button
+                  onClick={checkConditions}
+                  disabled={loading}
+                  className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+                    loading ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
+                  } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+                >
+                  {loading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      <span>Refreshing...</span>
+                    </div>
+                  ) : (
+                    'Refresh'
+                  )}
+                </button>
+              </div>
+              {error && (
+                <p className="text-sm text-red-600 text-right">{error}</p>
               )}
-            </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {error && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-md">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {conditions && !error && (
-          <>
+        {conditions && (
+          <div className={`transition-opacity duration-200 ${loading ? 'opacity-50' : 'opacity-100'}`}>
             {/* Current Conditions Card */}
             <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden">
               <div className="px-6 py-5 border-b border-gray-200">
@@ -160,119 +149,8 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Criteria Cards */}
-            <div className="space-y-4">
-              {/* Good Conditions Criteria */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden">
-                <button 
-                  onClick={() => setShowGoodCriteria(!showGoodCriteria)}
-                  className="w-full px-6 py-4 bg-blue-50 border-b border-blue-100 flex justify-between items-center"
-                >
-                  <h2 className="text-xl font-semibold text-blue-900">Good Conditions</h2>
-                  <svg 
-                    className={`w-5 h-5 transform transition-transform ${showGoodCriteria ? 'rotate-180' : ''}`} 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {showGoodCriteria && (
-                  <div className="px-6 py-5 space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Wave Height</p>
-                        <p className="text-base font-medium text-gray-900">
-                          {SURF_CONDITIONS.good.waveHeight.min} - {SURF_CONDITIONS.good.waveHeight.max} m
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Wave Period</p>
-                        <p className="text-base font-medium text-gray-900">
-                          {SURF_CONDITIONS.good.wave.periodMin} - {SURF_CONDITIONS.good.wave.periodMax} s
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Wave Direction</p>
-                        <p className="text-base font-medium text-gray-900">
-                          {SURF_CONDITIONS.good.wave.preferredDirections.join(', ')}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Wind Speed</p>
-                        <p className="text-base font-medium text-gray-900">
-                          Up to {SURF_CONDITIONS.good.wind.maxSpeed} km/h
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Wind Direction</p>
-                        <p className="text-base font-medium text-gray-900">
-                          Offshore to Cross-Shore (±2 directions)
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Perfect Conditions Criteria */}
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden">
-                <button 
-                  onClick={() => setShowPerfectCriteria(!showPerfectCriteria)}
-                  className="w-full px-6 py-4 bg-green-50 border-b border-green-100 flex justify-between items-center"
-                >
-                  <h2 className="text-xl font-semibold text-green-900">Perfect Conditions</h2>
-                  <svg 
-                    className={`w-5 h-5 transform transition-transform ${showPerfectCriteria ? 'rotate-180' : ''}`} 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                {showPerfectCriteria && (
-                  <div className="px-6 py-5 space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-500">Wave Height</p>
-                        <p className="text-base font-medium text-gray-900">
-                          {SURF_CONDITIONS.perfect.waveHeight.min} - {SURF_CONDITIONS.perfect.waveHeight.max} m
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Wave Period</p>
-                        <p className="text-base font-medium text-gray-900">
-                          {SURF_CONDITIONS.perfect.wave.periodMin} - {SURF_CONDITIONS.perfect.wave.periodMax} s
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Wave Direction</p>
-                        <p className="text-base font-medium text-gray-900">
-                          {SURF_CONDITIONS.perfect.wave.preferredDirections.join(', ')}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Wind Speed</p>
-                        <p className="text-base font-medium text-gray-900">
-                          Up to {SURF_CONDITIONS.perfect.wind.maxSpeed} km/h
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500">Wind Direction</p>
-                        <p className="text-base font-medium text-gray-900">
-                          Offshore (±1 direction)
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* Detailed Forecast Table */}
-            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden">
+            <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden mt-12">
               <div className="px-6 py-5 border-b border-gray-200">
                 <h2 className="text-2xl font-semibold text-gray-900">7-Day Detailed Forecast</h2>
               </div>
@@ -349,7 +227,118 @@ export default function Home() {
                 </table>
               </div>
             </div>
-          </>
+
+            {/* Criteria Cards */}
+            <div className="mt-12 mb-12 space-y-8">
+              {/* Good Conditions Criteria */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden">
+                <button 
+                  onClick={() => setShowGoodCriteria(!showGoodCriteria)}
+                  className="w-full px-6 py-4 bg-blue-50 border-b border-blue-100 flex justify-between items-center"
+                >
+                  <h2 className="text-xl font-semibold text-blue-900">Good Conditions</h2>
+                  <svg 
+                    className={`w-5 h-5 transform transition-transform ${showGoodCriteria ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showGoodCriteria && (
+                  <div className="px-6 py-5 space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Height</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.good.waveHeight.min} - {SURF_CONDITIONS.good.waveHeight.max} m
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Period</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.good.wave.periodMin} - {SURF_CONDITIONS.good.wave.periodMax} s
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Direction</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.good.wave.preferredDirections.join(', ')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wind Speed</p>
+                        <p className="text-base font-medium text-gray-900">
+                          Up to {SURF_CONDITIONS.good.wind.maxSpeed} km/h
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wind Direction</p>
+                        <p className="text-base font-medium text-gray-900">
+                          Offshore to Cross-Shore (±2 directions)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Perfect Conditions Criteria */}
+              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden mt-8">
+                <button 
+                  onClick={() => setShowPerfectCriteria(!showPerfectCriteria)}
+                  className="w-full px-6 py-4 bg-green-50 border-b border-green-100 flex justify-between items-center"
+                >
+                  <h2 className="text-xl font-semibold text-green-900">Perfect Conditions</h2>
+                  <svg 
+                    className={`w-5 h-5 transform transition-transform ${showPerfectCriteria ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showPerfectCriteria && (
+                  <div className="px-6 py-5 space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Height</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.perfect.waveHeight.min} - {SURF_CONDITIONS.perfect.waveHeight.max} m
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Period</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.perfect.wave.periodMin} - {SURF_CONDITIONS.perfect.wave.periodMax} s
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wave Direction</p>
+                        <p className="text-base font-medium text-gray-900">
+                          {SURF_CONDITIONS.perfect.wave.preferredDirections.join(', ')}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wind Speed</p>
+                        <p className="text-base font-medium text-gray-900">
+                          Up to {SURF_CONDITIONS.perfect.wind.maxSpeed} km/h
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500">Wind Direction</p>
+                        <p className="text-base font-medium text-gray-900">
+                          Offshore (±1 direction)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
 
         {loading && !conditions && (
