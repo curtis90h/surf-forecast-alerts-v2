@@ -261,32 +261,37 @@ jobs:
 
           async function sendEmail(conditions) {
             try {
-              console.log("Initializing EmailJS...");
-              
-              // Initialize with private key for Node.js environment
-              init({
-                publicKey: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY,
-                privateKey: process.env.NEXT_PUBLIC_EMAILJS_PRIVATE_KEY,
-              });
+              console.log("Preparing to send email...");
               
               // Create a message with the good conditions details
               const goodConditionsText = conditions.goodConditionsDetails
                 .map(c => `${c.date} ${c.timeOfDay}: ${c.wave.height}m ${c.wave.direction} @ ${c.wave.period}s, wind ${c.wind.speed}km/h ${c.wind.direction}`)
                 .join("\n");
 
-              console.log("Sending email...");
-              const response = await send(
-                process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
-                process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
+              console.log("Sending email via REST API...");
+              const response = await axios.post(
+                'https://api.emailjs.com/api/v1.0/email/send',
                 {
-                  good_conditions: goodConditionsText,
-                  message: "Good surf conditions found!"
+                  service_id: process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
+                  template_id: process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
+                  user_id: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY,
+                  accessToken: process.env.NEXT_PUBLIC_EMAILJS_PRIVATE_KEY,
+                  template_params: {
+                    good_conditions: goodConditionsText,
+                    message: "Good surf conditions found!"
+                  }
+                },
+                {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'origin': 'https://api.emailjs.com'
+                  }
                 }
               );
               
-              console.log("Email sent successfully:", response);
+              console.log("Email sent successfully:", response.status);
             } catch (error) {
-              console.error("Error sending email:", error);
+              console.error("Error sending email:", error.response ? error.response.data : error.message);
               console.error("EmailJS configuration:", {
                 serviceId: process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
                 templateId: process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
