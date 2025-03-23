@@ -4,7 +4,7 @@ on:
   schedule:
     # Run at 8 AM Pacific Time (15:00 UTC)
     - cron: '0 15 * * *'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch: # Allow manual trigger for testing
 
 jobs:
   check-conditions:
@@ -12,6 +12,17 @@ jobs:
     steps:
       - name: Check surf conditions
         run: |
-          curl -X POST ${{ secrets.NETLIFY_SITE_URL }}/api/check-forecast \
-          -H "Content-Type: application/json" \
-          -d '{"checkType": "scheduled"}' 
+          response=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.NETLIFY_SITE_URL }}/api/check-forecast" \
+            -H "Content-Type: application/json" \
+            -d '{"checkType": "scheduled"}')
+          
+          http_code=$(echo "$response" | tail -n1)
+          content=$(echo "$response" | sed '$d')
+          
+          echo "Response code: $http_code"
+          echo "Response content: $content"
+          
+          if [ "$http_code" -ne 200 ]; then
+            echo "Error: Received HTTP status $http_code"
+            exit 1
+          fi 
