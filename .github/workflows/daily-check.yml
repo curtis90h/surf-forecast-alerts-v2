@@ -283,8 +283,8 @@ jobs:
                 },
                 {
                   headers: {
-                    'Content-Type': 'application/json',
-                    'origin': 'https:\/\/api.emailjs.com'
+                    "content-type": "application/json",
+                    "origin": "https:\/\/api.emailjs.com"
                   }
                 }
               );
