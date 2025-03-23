@@ -270,7 +270,7 @@ jobs:
 
               console.log("Sending email via REST API...");
               const response = await axios.post(
-                'https://api.emailjs.com/api/v1.0/email/send',
+                "https:\/\/api.emailjs.com\/api\/v1.0\/email\/send",
                 {
                   service_id: process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
                   template_id: process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
@@ -284,7 +284,7 @@ jobs:
                 {
                   headers: {
                     'Content-Type': 'application/json',
-                    'origin': 'https://api.emailjs.com'
+                    'origin': 'https:\/\/api.emailjs.com'
                   }
                 }
               );
