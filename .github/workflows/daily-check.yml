@@ -55,17 +55,13 @@ jobs:
           };
 
           function getOpposingWindDirections(waveDirection) {
-            // Find the index of the wave direction
             const waveIndex = COMPASS_DIRECTIONS.indexOf(waveDirection);
             if (waveIndex === -1) return [];
             
-            // Calculate the opposing direction index (add 8 positions, wrap around if needed)
             const oppositeIndex = (waveIndex + 8) % 16;
-            
-            // Get 2 directions on either side of the opposite direction
             const validWindDirections = [];
             for (let i = -2; i <= 2; i++) {
-              const windIndex = (oppositeIndex + i + 16) % 16; // Add 16 to handle negative numbers
+              const windIndex = (oppositeIndex + i + 16) % 16;
               validWindDirections.push(COMPASS_DIRECTIONS[windIndex]);
             }
             
@@ -91,11 +87,9 @@ jobs:
               const $ = cheerio.load(html);
               console.log("Page loaded successfully");
 
-              // Find the period row using the data-row-name attribute
               const periodRow = $(".forecast-table__row[data-row-name='periods']");
               console.log("Period row found:", periodRow.length > 0);
 
-              // Get period values from the cells for all days
               const periodValues = [];
               if (periodRow.length > 0) {
                 const periodCells = periodRow.find(".forecast-table__cell");
@@ -108,14 +102,11 @@ jobs:
               }
               console.log("Period values:", periodValues);
 
-              // Get all wave height cells for all days
               const waveCells = $(".forecast-table-wave-height__cell");
               
-              // Get today's date at midnight for consistent day calculations
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               
-              // Initialize detailed forecast object
               const detailedForecast = {
                 today: { morning: null, afternoon: null, night: null },
                 day2: { morning: null, afternoon: null, night: null },
@@ -126,7 +117,6 @@ jobs:
                 day7: { morning: null, afternoon: null, night: null }
               };
 
-              // Variables to store current conditions from first time period
               let currentWaveHeight = 0;
               let currentWavePeriod = 0;
               let currentWindSpeed = 0;
@@ -142,14 +132,10 @@ jobs:
                 const timeOfDay = index % 3 === 0 ? "morning" : index % 3 === 1 ? "afternoon" : "night";
                 
                 try {
-                  // Get the summary wave height from the displayed value
                   const summaryHeight = parseFloat($cell.find(".swell-icon__val").text().trim()) || 0;
                   const direction = $cell.find(".swell-icon__letters").text().trim();
-                  
-                  // Get wind data
                   const windData = JSON.parse($cell.attr("data-wind") || "{}");
 
-                  // Calculate the date for this forecast period
                   const forecastDate = new Date(today);
                   forecastDate.setDate(today.getDate() + dayIndex);
                   
@@ -159,7 +145,6 @@ jobs:
                     day: "numeric"
                   });
 
-                  // Store current conditions from the first time period
                   if (index === 0) {
                     currentWaveHeight = summaryHeight;
                     currentWavePeriod = periodValues[0] || 0;
@@ -182,7 +167,6 @@ jobs:
                     formattedDate: formattedDate
                   };
 
-                  // Check if conditions are favorable for this time period
                   const { isGood } = areFavorableConditions({
                     waveHeight: timeData.wave.height,
                     wavePeriod: timeData.wave.period,
@@ -237,7 +221,6 @@ jobs:
               }
             };
 
-            // Get valid wind directions based on wave direction
             const validWindDirections = getOpposingWindDirections(wave.direction);
             console.log(`Wave direction: ${wave.direction}, Valid wind directions:`, validWindDirections);
 
@@ -313,5 +296,4 @@ jobs:
             }
           }
 
-          main();
-          ' 
+          main();' 
