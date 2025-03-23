@@ -265,7 +265,7 @@ jobs:
               
               // Create a message with the good conditions details
               const goodConditionsText = conditions.goodConditionsDetails
-                .map(c => `${c.date} ${c.timeOfDay}: ${c.wave.height}m ${c.wave.direction} @ ${c.wave.period}s, wind ${c.wind.speed}km/h ${c.wind.direction}`)
+                .map(c => `${c.date} ${c.timeOfDay.charAt(0).toUpperCase() + c.timeOfDay.slice(1)}: ${c.wave.height}m ${c.wave.direction} @ ${c.wave.period}s, wind ${c.wind.speed}km/h ${c.wind.direction}`)
                 .join("\n");
 
               console.log("Sending email via REST API...");
@@ -277,8 +277,7 @@ jobs:
                   user_id: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY,
                   accessToken: process.env.NEXT_PUBLIC_EMAILJS_PRIVATE_KEY,
                   template_params: {
-                    good_conditions: goodConditionsText,
-                    message: "Good surf conditions found!"
+                    good_conditions: goodConditionsText
                   }
                 },
                 {

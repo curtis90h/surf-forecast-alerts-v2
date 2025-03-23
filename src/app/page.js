@@ -17,13 +17,18 @@ export default function Home() {
       const response = await fetch('/api/check-forecast');
       const data = await response.json();
       
-      if (!data.success) throw new Error(data.error);
+      if (!data.success) {
+        setError(data.error);
+        return; // Don't clear existing conditions on error
+      }
+
       console.log('Received data:', data);
       console.log('Detailed forecast:', data.conditions.detailedForecast);
       setConditions(data);
     } catch (err) {
       console.error('Error checking conditions:', err);
       setError(err.message);
+      // Don't clear existing conditions on error
     } finally {
       setLoading(false);
     }
@@ -32,6 +37,25 @@ export default function Home() {
   useEffect(() => {
     checkConditions();
   }, []);
+
+  if (!conditions && !error) {
+    return (
+      <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
+        <div className="relative py-3 sm:max-w-xl sm:mx-auto">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-400 to-light-blue-500 shadow-lg transform -skew-y-6 sm:skew-y-0 sm:-rotate-6 sm:rounded-3xl"></div>
+          <div className="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
+            <div className="max-w-md mx-auto">
+              <div className="divide-y divide-gray-200">
+                <div className="py-8 text-base leading-6 space-y-4 text-gray-700 sm:text-lg sm:leading-7">
+                  <p>Loading surf conditions...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200">
