@@ -37,17 +37,40 @@ jobs:
           const emailjs = require("@emailjs/nodejs");
           const axios = require("axios");
 
+          const COMPASS_DIRECTIONS = [
+            "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+            "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
+          ];
+
           const SURF_CONDITIONS = {
             good: {
               waveHeight: { min: 1, max: 2 },
               wave: {
-                preferredDirections: ["S", "SW", "W"],
+                preferredDirections: ["S", "SSW", "SW", "WSW", "W"],
                 periodMin: 12,
                 periodMax: 21
               },
               wind: { maxSpeed: 15 }
             }
           };
+
+          function getOpposingWindDirections(waveDirection) {
+            // Find the index of the wave direction
+            const waveIndex = COMPASS_DIRECTIONS.indexOf(waveDirection);
+            if (waveIndex === -1) return [];
+            
+            // Calculate the opposing direction index (add 8 positions, wrap around if needed)
+            const oppositeIndex = (waveIndex + 8) % 16;
+            
+            // Get 2 directions on either side of the opposite direction
+            const validWindDirections = [];
+            for (let i = -2; i <= 2; i++) {
+              const windIndex = (oppositeIndex + i + 16) % 16; // Add 16 to handle negative numbers
+              validWindDirections.push(COMPASS_DIRECTIONS[windIndex]);
+            }
+            
+            return validWindDirections;
+          }
 
           async function scrapeSurfConditions(beach) {
             try {
@@ -68,54 +91,128 @@ jobs:
               const $ = cheerio.load(html);
               console.log("Page loaded successfully");
 
-              // Get wave data from the first forecast cell
-              const waveCell = $(".forecast-table tbody tr:first-child td:nth-child(3)");
-              console.log("Wave cell found:", waveCell.length > 0);
+              // Find the period row using the data-row-name attribute
+              const periodRow = $(".forecast-table__row[data-row-name='periods']");
+              console.log("Period row found:", periodRow.length > 0);
 
-              // Extract wave height (looking for the primary number in the cell)
-              const waveText = waveCell.text().trim();
-              console.log("Wave text:", waveText);
-              const waveMatch = waveText.match(/(\d+\.?\d*)/);
-              const waveHeight = waveMatch ? parseFloat(waveMatch[1]) : 0;
+              // Get period values from the cells for all days
+              const periodValues = [];
+              if (periodRow.length > 0) {
+                const periodCells = periodRow.find(".forecast-table__cell");
+                console.log("Period cells found:", periodCells.length);
+                
+                periodCells.each((i, cell) => {
+                  const periodText = $(cell).find("strong").text().trim();
+                  periodValues.push(parseInt(periodText) || 0);
+                });
+              }
+              console.log("Period values:", periodValues);
 
-              // Extract wave direction
-              const waveDirectionElement = waveCell.find("span[title]");
-              const waveDirection = waveDirectionElement.attr("title")?.split(" ")[0] || "N/A";
-
-              // Extract wave period (looking for the number followed by s)
-              const periodMatch = waveText.match(/(\d+)s/);
-              const wavePeriod = periodMatch ? parseFloat(periodMatch[1]) : 0;
-
-              // Get wind data
-              const windCell = $(".forecast-table tbody tr:first-child td:nth-child(4)");
+              // Get all wave height cells for all days
+              const waveCells = $(".forecast-table-wave-height__cell");
               
-              // Extract wind speed
-              const windText = windCell.text().trim();
-              const windMatch = windText.match(/(\d+)/);
-              const windSpeed = windMatch ? parseFloat(windMatch[1]) : 0;
+              // Get today's date at midnight for consistent day calculations
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              
+              // Initialize detailed forecast object
+              const detailedForecast = {
+                today: { morning: null, afternoon: null, night: null },
+                day2: { morning: null, afternoon: null, night: null },
+                day3: { morning: null, afternoon: null, night: null },
+                day4: { morning: null, afternoon: null, night: null },
+                day5: { morning: null, afternoon: null, night: null },
+                day6: { morning: null, afternoon: null, night: null },
+                day7: { morning: null, afternoon: null, night: null }
+              };
 
-              // Extract wind direction
-              const windDirElement = windCell.find("span[title]");
-              const windDirection = windDirElement.attr("title")?.split(" ")[0] || "N/A";
+              // Variables to store current conditions from first time period
+              let currentWaveHeight = 0;
+              let currentWavePeriod = 0;
+              let currentWindSpeed = 0;
+              let currentWindDirection = "N/A";
+              let currentWaveDirection = "N/A";
+              
+              let hasGoodConditions = false;
 
-              console.log("Scraped raw values:", {
-                waveHeight,
-                wavePeriod,
-                waveDirection,
-                windDirection,
-                windSpeed
+              waveCells.each((index, cell) => {
+                const $cell = $(cell);
+                const dayIndex = Math.floor(index / 3);
+                const dayKey = dayIndex === 0 ? "today" : `day${dayIndex + 1}`;
+                const timeOfDay = index % 3 === 0 ? "morning" : index % 3 === 1 ? "afternoon" : "night";
+                
+                try {
+                  // Get the summary wave height from the displayed value
+                  const summaryHeight = parseFloat($cell.find(".swell-icon__val").text().trim()) || 0;
+                  const direction = $cell.find(".swell-icon__letters").text().trim();
+                  
+                  // Get wind data
+                  const windData = JSON.parse($cell.attr("data-wind") || "{}");
+
+                  // Calculate the date for this forecast period
+                  const forecastDate = new Date(today);
+                  forecastDate.setDate(today.getDate() + dayIndex);
+                  
+                  const formattedDate = forecastDate.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric"
+                  });
+
+                  // Store current conditions from the first time period
+                  if (index === 0) {
+                    currentWaveHeight = summaryHeight;
+                    currentWavePeriod = periodValues[0] || 0;
+                    currentWindSpeed = windData.speed || 0;
+                    currentWindDirection = windData.direction?.letters || "N/A";
+                    currentWaveDirection = direction;
+                  }
+
+                  const timeData = {
+                    wave: {
+                      height: summaryHeight,
+                      direction: direction,
+                      period: periodValues[index] || 0
+                    },
+                    wind: {
+                      speed: windData.speed || 0,
+                      direction: windData.direction?.letters || "N/A"
+                    },
+                    timestamp: forecastDate.toISOString(),
+                    formattedDate: formattedDate
+                  };
+
+                  // Check if conditions are favorable for this time period
+                  const { isGood } = areFavorableConditions({
+                    waveHeight: timeData.wave.height,
+                    wavePeriod: timeData.wave.period,
+                    waveDirection: timeData.wave.direction,
+                    windSpeed: timeData.wind.speed,
+                    windDirection: timeData.wind.direction
+                  }, SURF_CONDITIONS);
+
+                  timeData.isGood = isGood;
+                  
+                  if (isGood) {
+                    hasGoodConditions = true;
+                    console.log(`Found good conditions on ${formattedDate} ${timeOfDay}:`, timeData);
+                  }
+
+                  detailedForecast[dayKey][timeOfDay] = timeData;
+                } catch (error) {
+                  console.error(`Error parsing ${dayKey} ${timeOfDay} data:`, error);
+                }
               });
 
-              if (waveHeight === 0 && wavePeriod === 0 && !waveDirection && !windDirection && windSpeed === 0) {
-                throw new Error("Failed to scrape any valid conditions - possible website structure change or blocking");
-              }
-
               return {
-                waveHeight,
-                wavePeriod,
-                waveDirection,
-                windDirection,
-                windSpeed
+                waveHeight: currentWaveHeight,
+                wavePeriod: currentWavePeriod,
+                waveDirection: currentWaveDirection,
+                windDirection: currentWindDirection,
+                windSpeed: currentWindSpeed,
+                timestamp: new Date().toISOString(),
+                detailedForecast,
+                hasGoodConditions
               };
             } catch (error) {
               console.error("Error scraping conditions:", error.message);
@@ -140,24 +237,30 @@ jobs:
               }
             };
 
-            console.log("Checking conditions:", { wave, wind });
-            console.log("Against criteria:", criteria.good);
+            // Get valid wind directions based on wave direction
+            const validWindDirections = getOpposingWindDirections(wave.direction);
+            console.log(`Wave direction: ${wave.direction}, Valid wind directions:`, validWindDirections);
 
             const checks = {
               height: wave.height >= criteria.good.waveHeight.min && wave.height <= criteria.good.waveHeight.max,
               direction: criteria.good.wave.preferredDirections.includes(wave.direction),
               period: wave.period >= criteria.good.wave.periodMin && wave.period <= criteria.good.wave.periodMax,
               windSpeed: wind.speed <= criteria.good.wind.maxSpeed,
-              windDirection: ["E", "ENE", "ESE"].includes(wind.direction), // Offshore winds
+              windDirection: validWindDirections.includes(wind.direction),
               waveHeight: wave.height,
               waveDirection: wave.direction,
               wavePeriod: wave.period,
               windDir: wind.direction
             };
 
-            console.log("Condition checks:", checks);
-
             const isGood = checks.height && checks.direction && checks.period && checks.windSpeed && checks.windDirection;
+            
+            if (!isGood) {
+              console.log("Failed checks:", Object.entries(checks)
+                .filter(([_, value]) => !value)
+                .map(([key]) => key)
+                .join(", "));
+            }
             
             return { isGood };
           }
@@ -197,15 +300,12 @@ jobs:
               const conditions = await scrapeSurfConditions(process.env.NEXT_PUBLIC_TARGET_BEACH);
               console.log("Scraped conditions:", conditions);
               
-              const { isGood } = areFavorableConditions(conditions, SURF_CONDITIONS);
-              console.log("Conditions favorable:", isGood);
-              
-              if (isGood) {
-                console.log("Conditions are good, sending email...");
+              if (conditions.hasGoodConditions) {
+                console.log("Found good conditions in the forecast, sending email...");
                 await sendEmail(conditions);
                 console.log("Email notification sent");
               } else {
-                console.log("Conditions not favorable, skipping email");
+                console.log("No good conditions found in the forecast, skipping email");
               }
             } catch (error) {
               console.error("Error in main:", error);

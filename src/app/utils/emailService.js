@@ -11,11 +11,11 @@ export const sendSurfAlert = async (conditions) => {
     // Initialize EmailJS with your public key
     emailjs.init(EMAIL_CONFIG.publicKey);
 
-    // Check if conditions are good or perfect
-    const { isGood, isPerfect } = conditions;
+    // Only check for good conditions, ignore perfect
+    const { isGood } = conditions;
     
-    if (!isGood && !isPerfect) {
-      console.log('No good or perfect conditions found, skipping email');
+    if (!isGood) {
+      console.log('No good conditions found, skipping email');
       return;
     }
 

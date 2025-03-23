@@ -7,7 +7,7 @@ export const SURF_CONDITIONS = {
       max: 2,
     },
     wave: {
-      preferredDirections: ['S', 'SW', 'W'],
+      preferredDirections: ['S', 'SSW', 'SW', 'WSW', 'W'],
       periodMin: 12,
       periodMax: 21,
     },
@@ -21,7 +21,7 @@ export const SURF_CONDITIONS = {
       max: 1.5,
     },
     wave: {
-      preferredDirections: ['S', 'SW'],
+      preferredDirections: ['S', 'SSW', 'SW'],
       periodMin: 15,
       periodMax: 21,
     },
