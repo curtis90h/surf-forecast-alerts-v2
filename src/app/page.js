@@ -7,6 +7,7 @@ export default function Home() {
   const [conditions, setConditions] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isCached, setIsCached] = useState(false);
   const [showGoodCriteria, setShowGoodCriteria] = useState(false);
   const [showPerfectCriteria, setShowPerfectCriteria] = useState(false);
 
@@ -25,6 +26,7 @@ export default function Home() {
       console.log('Received data:', data);
       console.log('Detailed forecast:', data.conditions.detailedForecast);
       setConditions(data);
+      setIsCached(data.cached || false);
     } catch (err) {
       console.error('Error checking conditions:', err);
       setError(err.message);
@@ -70,7 +72,12 @@ export default function Home() {
               </span>
             </h1>
             <div className="flex flex-col items-end gap-2">
-              <div className="flex justify-end">
+              <div className="flex items-center gap-3">
+                {isCached && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    📋 Cached
+                  </span>
+                )}
                 <button
                   onClick={checkConditions}
                   disabled={loading}
