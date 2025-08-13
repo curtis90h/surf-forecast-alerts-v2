@@ -1,4 +1,4 @@
-// Configuration for surf conditions and EmailJS
+// Configuration for surf conditions and SMTP
 export const SURF_CONDITIONS = {
   beach: process.env.NEXT_PUBLIC_TARGET_BEACH || 'default-beach',
   good: {
@@ -81,11 +81,14 @@ export function isWindDirectionFavorable(swellDirection, windDirection, toleranc
   return isOffshore;
 }
 
-export const EMAIL_CONFIG = {
-  serviceId: process.env.EMAILJS_SERVICE_ID,
-  templateId: process.env.EMAILJS_TEMPLATE_ID,
-  userId: process.env.EMAILJS_USER_ID,
-  accessToken: process.env.EMAILJS_ACCESS_TOKEN,
+export const SMTP_CONFIG = {
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: process.env.SMTP_PORT || 587,
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
 };
 
 export const SURF_FORECAST_URL = process.env.NEXT_PUBLIC_SURF_FORECAST_URL || 'https://www.surf-forecast.com'; 

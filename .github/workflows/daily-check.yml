@@ -39,12 +39,37 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Validate secrets
+        run: |
+          if [ -z "${{ secrets.SMTP_HOST }}" ]; then
+            echo "Error: SMTP_HOST secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SMTP_PORT }}" ]; then
+            echo "Error: SMTP_PORT secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SMTP_USER }}" ]; then
+            echo "Error: SMTP_USER secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SMTP_PASS }}" ]; then
+            echo "Error: SMTP_PASS secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.NOTIFICATION_EMAIL }}" ]; then
+            echo "Error: NOTIFICATION_EMAIL secret is not set"
+            exit 1
+          fi
+          echo "All required secrets are configured"
+
       - name: Check surf conditions
         env:
-          EMAILJS_SERVICE_ID: ${{ secrets.EMAILJS_SERVICE_ID }}
-          EMAILJS_TEMPLATE_ID: ${{ secrets.EMAILJS_TEMPLATE_ID }}
-          EMAILJS_USER_ID: ${{ secrets.EMAILJS_USER_ID }}
-          EMAILJS_ACCESS_TOKEN: ${{ secrets.EMAILJS_ACCESS_TOKEN }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          NOTIFICATION_EMAIL: ${{ secrets.NOTIFICATION_EMAIL }}
           TARGET_BEACH: "Long-Beach_6"
           SURF_FORECAST_URL: "https://www.surf-forecast.com"
         run: |
@@ -53,6 +78,22 @@ jobs:
           node -e '
           const cheerio = require("cheerio");
           const axios = require("axios");
+          const nodemailer = require("nodemailer");
+
+          // Validate required environment variables
+          const requiredEnvVars = [
+            "SMTP_HOST", "SMTP_PORT", "SMTP_USER", 
+            "SMTP_PASS", "NOTIFICATION_EMAIL", 
+            "TARGET_BEACH", "SURF_FORECAST_URL"
+          ];
+          
+          const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+          if (missingVars.length > 0) {
+            console.error("Missing required environment variables:", missingVars);
+            process.exit(1);
+          }
+
+          console.log("All required environment variables are set");
 
           const COMPASS_DIRECTIONS = [
             "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
@@ -338,37 +379,57 @@ jobs:
                 })
                 .join("\n");
 
-              console.log("Sending email via EmailJS REST API...");
+              console.log("Sending email via SMTP...");
               
-              // Use the correct environment variable names
-              const response = await axios.post(
-                "https://api.emailjs.com/api/v1.0/email/send",
-                {
-                  service_id: process.env.EMAILJS_SERVICE_ID,
-                  template_id: process.env.EMAILJS_TEMPLATE_ID,
-                  user_id: process.env.EMAILJS_USER_ID,
-                  accessToken: process.env.EMAILJS_ACCESS_TOKEN,
-                  template_params: {
-                    good_conditions: goodConditionsText
-                  }
+              // Create transporter
+              const transporter = nodemailer.createTransport({
+                host: process.env.SMTP_HOST,
+                port: process.env.SMTP_PORT,
+                secure: false,
+                auth: {
+                  user: process.env.SMTP_USER,
+                  pass: process.env.SMTP_PASS,
                 },
-                {
-                  headers: {
-                    "content-type": "application/json",
-                    "origin": "https://api.emailjs.com"
-                  },
-                  timeout: 30000
-                }
-              );
-              
-              console.log("Email sent successfully:", response.status);
+              });
+
+              // Email content
+              const mailOptions = {
+                from: process.env.SMTP_USER,
+                to: process.env.NOTIFICATION_EMAIL,
+                subject: `🏄‍♂️ Surf Alert: Good conditions at ${process.env.TARGET_BEACH}!`,
+                html: `
+                  <h2>🏄‍♂️ Surf Alert!</h2>
+                  <p>Good surf conditions detected at <strong>${process.env.TARGET_BEACH}</strong>!</p>
+                  
+                  <h3>Good Conditions Found:</h3>
+                  <pre style="background: #f4f4f4; padding: 15px; border-radius: 5px; font-family: monospace;">${goodConditionsText}</pre>
+                  
+                  <p><em>Check time: ${new Date().toLocaleString()}</em></p>
+                  
+                  <p>Time to grab your board and hit the waves! 🏄‍♀️</p>
+                `,
+                text: `
+                  Surf Alert! Good conditions at ${process.env.TARGET_BEACH}!
+                  
+                  Good Conditions Found:
+                  ${goodConditionsText}
+                  
+                  Check time: ${new Date().toLocaleString()}
+                  
+                  Time to grab your board and hit the waves!
+                `
+              };
+
+              const info = await transporter.sendMail(mailOptions);
+              console.log("Email sent successfully:", info.messageId);
             } catch (error) {
-              console.error("Error sending email:", error.response ? error.response.data : error.message);
-              console.error("EmailJS configuration:", {
-                serviceId: process.env.EMAILJS_SERVICE_ID,
-                templateId: process.env.EMAILJS_TEMPLATE_ID,
-                userId: process.env.EMAILJS_USER_ID,
-                accessToken: "..." + (process.env.EMAILJS_ACCESS_TOKEN ? process.env.EMAILJS_ACCESS_TOKEN.slice(-4) : "undefined")
+              console.error("Error sending email:", error.message);
+              console.error("SMTP configuration:", {
+                host: process.env.SMTP_HOST,
+                port: process.env.SMTP_PORT,
+                user: process.env.SMTP_USER,
+                pass: process.env.SMTP_PASS ? "..." + process.env.SMTP_PASS.slice(-4) : "undefined",
+                to: process.env.NOTIFICATION_EMAIL
               });
               throw error;
             }
@@ -380,10 +441,11 @@ jobs:
               console.log("Environment variables check:", {
                 beach: process.env.TARGET_BEACH,
                 surfUrl: process.env.SURF_FORECAST_URL,
-                emailService: process.env.EMAILJS_SERVICE_ID ? "Set" : "Not set",
-                emailTemplate: process.env.EMAILJS_TEMPLATE_ID ? "Set" : "Not set",
-                emailUser: process.env.EMAILJS_USER_ID ? "Set" : "Not set",
-                emailToken: process.env.EMAILJS_ACCESS_TOKEN ? "Set" : "Not set"
+                smtpHost: process.env.SMTP_HOST ? "Set" : "Not set",
+                smtpPort: process.env.SMTP_PORT ? "Set" : "Not set",
+                smtpUser: process.env.SMTP_USER ? "Set" : "Not set",
+                smtpPass: process.env.SMTP_PASS ? "Set" : "Not set",
+                notificationEmail: process.env.NOTIFICATION_EMAIL ? "Set" : "Not set"
               });
               
               const conditions = await scrapeSurfConditions(process.env.TARGET_BEACH);
