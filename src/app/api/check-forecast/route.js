@@ -1,49 +1,42 @@
 import { NextResponse } from 'next/server';
-import { scrapeSurfConditions, areFavorableConditions } from '@/app/utils/scraper';
-import { sendSurfAlert } from '@/app/utils/emailService';
-import { SURF_CONDITIONS } from '@/app/config/surfConditions';
+import { checkSurfConditions } from '@/utils/surfCheck';
 
-// In-memory store for last check time, cached results, and rate limiting
-let lastCheckTime = 0;
-let cachedConditions = null;
-let cacheTimestamp = 0;
-const COOLDOWN_PERIOD = 5 * 60 * 1000; // 5 minutes in milliseconds
-const CACHE_DURATION = 15 * 60 * 1000; // 15 minutes in milliseconds
+// Rate limiting and caching - TEMPORARILY DISABLED FOR TESTING
+const COOLDOWN_PERIOD = 0; // TEMPORARILY DISABLED FOR TESTING
+const CACHE_DURATION = 0; // TEMPORARILY DISABLED FOR TESTING
 
-// Rate limiting by IP
+// Rate limiting by IP - TEMPORARILY DISABLED FOR TESTING
 const ipRequests = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 10; // Max 10 requests per minute per IP
+const MAX_REQUESTS_PER_WINDOW = 999; // TEMPORARILY DISABLED FOR TESTING
 
 function getClientIP(request) {
   const forwarded = request.headers.get('x-forwarded-for');
   const realIP = request.headers.get('x-real-ip');
-  return forwarded?.split(',')[0] || realIP || 'unknown';
+  return forwarded ? forwarded.split(',')[0] : realIP || 'unknown';
 }
 
-function isRateLimited(ip) {
+function isRateLimited(clientIP) {
   const now = Date.now();
-  const requests = ipRequests.get(ip) || [];
+  const userRequests = ipRequests.get(clientIP) || [];
   
   // Remove old requests outside the window
-  const recentRequests = requests.filter(time => now - time < RATE_LIMIT_WINDOW);
+  const recentRequests = userRequests.filter(timestamp => now - timestamp < RATE_LIMIT_WINDOW);
   
   if (recentRequests.length >= MAX_REQUESTS_PER_WINDOW) {
     return true;
   }
   
-  // Add current request
   recentRequests.push(now);
-  ipRequests.set(ip, recentRequests);
-  
+  ipRequests.set(clientIP, recentRequests);
   return false;
 }
 
-async function handleForecastCheck(request, isScheduled = false) {
+export async function GET(request) {
   try {
-    const now = Date.now();
+    const isScheduled = request.headers.get('x-scheduled') === 'true';
     
-    // Rate limiting (skip for scheduled checks)
+    // Rate limiting (skip for scheduled checks) - TEMPORARILY DISABLED FOR TESTING
     if (!isScheduled) {
       const clientIP = getClientIP(request);
       if (isRateLimited(clientIP)) {
@@ -53,86 +46,103 @@ async function handleForecastCheck(request, isScheduled = false) {
         }, { status: 429 });
       }
     }
+
+    console.log('Forecast check requested');
     
-    // For scheduled checks, always fetch fresh data
-    if (isScheduled) {
-      console.log('Scheduled check - fetching fresh data for beach:', SURF_CONDITIONS.beach);
-      const conditions = await scrapeSurfConditions(SURF_CONDITIONS.beach);
-      const { isGood, isPerfect } = areFavorableConditions(conditions, SURF_CONDITIONS);
-      
-      try {
-        await sendSurfAlert({
-          ...conditions,
-          isGood,
-          isPerfect,
-          beach: SURF_CONDITIONS.beach
-        });
-      } catch (emailError) {
-        console.error('Error sending email notification:', emailError);
-      }
-      
-      return NextResponse.json({
-        success: true,
-        conditions: {
-          ...conditions,
-          isGood,
-          isPerfect
-        }
-      });
-    }
+    const result = await checkSurfConditions();
     
-    // For manual checks, use cache if available and fresh
-    if (cachedConditions && (now - cacheTimestamp) < CACHE_DURATION) {
-      console.log('Returning cached conditions (age:', Math.round((now - cacheTimestamp) / 60000), 'minutes)');
-      return NextResponse.json({
-        success: true,
-        conditions: cachedConditions,
-        cached: true
-      });
-    }
-    
-    // Check cooldown period for non-scheduled checks
-    if (now - lastCheckTime < COOLDOWN_PERIOD) {
-      const minutesRemaining = Math.ceil((COOLDOWN_PERIOD - (now - lastCheckTime)) / 60000);
+    if (!result.success) {
       return NextResponse.json({
         success: false,
-        error: `Please wait ${minutesRemaining} minutes before checking again`,
-        cooldownRemaining: minutesRemaining
-      }, { status: 429 });
+        error: result.error || 'Failed to check forecast'
+      });
     }
 
-    console.log('Fetching fresh conditions for beach:', SURF_CONDITIONS.beach);
-    
-    // Update last check time
-    lastCheckTime = now;
-    
-    // Get current conditions
-    const conditions = await scrapeSurfConditions(SURF_CONDITIONS.beach);
-    const { isGood, isPerfect } = areFavorableConditions(conditions, SURF_CONDITIONS);
-    
-    // Cache the results
-    cachedConditions = {
-      ...conditions,
-      isGood,
-      isPerfect
-    };
-    cacheTimestamp = now;
-    
+    // Return the data in the format the frontend expects
     return NextResponse.json({
       success: true,
-      conditions: cachedConditions
+      conditions: {
+        // Current conditions
+        waveHeight: result.conditions.waveHeight,
+        wavePeriod: result.conditions.wavePeriod,
+        waveDirection: result.conditions.waveDirection,
+        windSpeed: result.conditions.windSpeed,
+        windDirection: result.conditions.windDirection,
+        timestamp: result.conditions.timestamp,
+        isGood: result.conditions.isGood,
+        isPerfect: result.conditions.isPerfect,
+        
+        // Detailed forecast for the 7-day table
+        detailedForecast: result.forecastData ? result.forecastData.reduce((acc, dayData, index) => {
+          const dayKey = `day${index + 1}`;
+          acc[dayKey] = {
+            morning: dayData.morning ? {
+              wave: {
+                height: dayData.morning.waveHeight,
+                direction: dayData.morning.waveDirection,
+                period: dayData.morning.wavePeriod
+              },
+              wind: {
+                speed: dayData.morning.windSpeed,
+                direction: dayData.morning.windDirection
+              },
+              isGood: dayData.morning.isGood,
+              isPerfect: dayData.morning.isPerfect,
+              formattedDate: dayData.date.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric' 
+              })
+            } : null,
+            afternoon: dayData.afternoon ? {
+              wave: {
+                height: dayData.afternoon.waveHeight,
+                direction: dayData.afternoon.waveDirection,
+                period: dayData.afternoon.wavePeriod
+              },
+              wind: {
+                speed: dayData.afternoon.windSpeed,
+                direction: dayData.afternoon.windDirection
+              },
+              isGood: dayData.afternoon.isGood,
+              isPerfect: dayData.afternoon.isPerfect,
+              formattedDate: dayData.date.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric' 
+              })
+            } : null,
+            night: dayData.evening ? {
+              wave: {
+                height: dayData.evening.waveHeight,
+                direction: dayData.evening.waveDirection,
+                period: dayData.evening.wavePeriod
+              },
+              wind: {
+                speed: dayData.evening.windSpeed,
+                direction: dayData.evening.windDirection
+              },
+              isGood: dayData.evening.isGood,
+              isPerfect: dayData.evening.isPerfect,
+              formattedDate: dayData.date.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric' 
+              })
+            } : null
+          };
+          return acc;
+        }, {}) : {}
+      }
     });
-  } catch (error) {
-    console.error('Error in forecast API:', error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
-  }
-}
 
-export async function GET(request) {
-  return handleForecastCheck(request, false);
+  } catch (error) {
+    console.error('Error in forecast check:', error);
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Internal server error'
+    }, { status: 500 });
+  }
 }
 
 export async function POST(request) {

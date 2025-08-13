@@ -20,16 +20,14 @@ export default function Home() {
       
       if (!data.success) {
         setError(data.error);
-        return; // Keep existing conditions by just returning here
+        return;
       }
 
       console.log('Received data:', data);
-      console.log('Detailed forecast:', data.conditions.detailedForecast);
       setConditions(data);
     } catch (err) {
       console.error('Error checking conditions:', err);
       setError(err.message);
-      // Keep existing conditions by not clearing them
     } finally {
       setLoading(false);
     }
@@ -73,7 +71,7 @@ export default function Home() {
               <h1 className="text-3xl md:text-4xl font-bold text-blue-900">
                 Surf Forecast
                 <span className="block text-lg font-normal text-blue-600 mt-1">
-                  {SURF_CONDITIONS.beach}
+                  Long Beach
                 </span>
               </h1>
               <div className="flex flex-col items-end gap-2">
@@ -123,8 +121,7 @@ export default function Home() {
                     conditions.conditions.isGood ? 'bg-blue-50/80 ring-2 ring-blue-500/20' : 
                     'bg-gray-50/80'
                   }`}>
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-xl font-semibold text-gray-900">Conditions</h3>
+                    <div className="flex items-center justify-end mb-4">
                       {conditions.conditions.isPerfect && (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                           🏄‍♂️ Perfect
@@ -161,6 +158,8 @@ export default function Home() {
                   </div>
                 </div>
               </div>
+
+
 
               {/* Detailed Forecast Table */}
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden mt-12">

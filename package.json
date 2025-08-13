@@ -6,11 +6,16 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "surf-check": "node src/utils/surfCheck.js",
+    "surf-check:test": "node src/utils/testSurfCheck.js",
+    "surf-check:cron": "node src/utils/cronJob.js",
+    "test-email": "node src/utils/testEmail.js"
   },
   "dependencies": {
     "axios": "^1.8.4",
     "cheerio": "^1.0.0",
+    "dotenv": "^17.2.1",
     "next": "15.2.3",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.7",
