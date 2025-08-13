@@ -16,7 +16,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.11.0'
+          node-version: '20'
           cache: 'npm'
 
       - name: Verify Node.js version
@@ -26,7 +26,7 @@ jobs:
           which node
           echo "Node.js executable: $(which node)"
           echo "Node.js version: $(node --version)"
-          echo "Expected: v20.11.0"
+          echo "Expected: v20.x"
 
       - name: Clear npm cache
         run: npm cache clean --force
@@ -38,6 +38,14 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Install compatible axios version
+        run: npm install axios@1.6.0 --save-exact
+
+      - name: Update package.json for compatibility
+        run: |
+          npm pkg set engines.node=">=20.0.0"
+          npm install --production=false
 
       - name: Validate secrets
         run: |
@@ -76,9 +84,33 @@ jobs:
           echo "Node.js version: $(node --version)"
           echo "NPM version: $(npm --version)"
           node -e '
+          // Polyfill for File global (needed for undici compatibility)
+          if (typeof global.File === "undefined") {
+            global.File = class File {
+              constructor(bits, name, options = {}) {
+                this.name = name;
+                this.size = bits.length;
+                this.type = options.type || "";
+                this.lastModified = options.lastModified || Date.now();
+              }
+            };
+          }
+
+          // Set NODE_OPTIONS to avoid undici issues
+          process.env.NODE_OPTIONS = "--no-experimental-fetch";
+
           const cheerio = require("cheerio");
           const axios = require("axios");
           const nodemailer = require("nodemailer");
+
+          // Fallback HTTP client if axios has issues
+          let httpClient;
+          try {
+            httpClient = axios;
+          } catch (error) {
+            console.log("Axios not available, using alternative approach");
+            // We'll handle this in the scraping function
+          }
 
           // Validate required environment variables
           const requiredEnvVars = [
@@ -140,7 +172,7 @@ jobs:
               const url = `${process.env.SURF_FORECAST_URL}/breaks/${beach}/forecasts/latest/six_day`;
               console.log("Fetching from:", url);
 
-              const response = await axios.get(url, {
+              const response = await httpClient.get(url, {
                 headers: {
                   "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                 },
