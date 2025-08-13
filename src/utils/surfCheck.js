@@ -304,7 +304,7 @@ async function sendEmail(conditions) {
     console.log("Sending email via SMTP...");
     
     // Create transporter
-    const transporter = nodemailer.createTransporter({
+    const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT,
       secure: false,
