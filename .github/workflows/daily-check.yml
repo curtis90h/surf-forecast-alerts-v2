@@ -11,31 +11,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: |
-          npm install cheerio
-          npm install @emailjs/nodejs
-          npm install axios
+        run: npm ci
 
       - name: Check surf conditions
         env:
-          NEXT_PUBLIC_EMAILJS_SERVICE_ID: ${{ secrets.EMAILJS_SERVICE_ID }}
-          NEXT_PUBLIC_EMAILJS_TEMPLATE_ID: ${{ secrets.EMAILJS_TEMPLATE_ID }}
-          NEXT_PUBLIC_EMAILJS_PUBLIC_KEY: ${{ secrets.EMAILJS_PUBLIC_KEY }}
-          NEXT_PUBLIC_EMAILJS_PRIVATE_KEY: ${{ secrets.EMAILJS_PRIVATE_KEY }}
-          NEXT_PUBLIC_TARGET_BEACH: "Long-Beach_6"
-          NEXT_PUBLIC_SURF_FORECAST_URL: "https://www.surf-forecast.com"
+          EMAILJS_SERVICE_ID: ${{ secrets.EMAILJS_SERVICE_ID }}
+          EMAILJS_TEMPLATE_ID: ${{ secrets.EMAILJS_TEMPLATE_ID }}
+          EMAILJS_USER_ID: ${{ secrets.EMAILJS_USER_ID }}
+          EMAILJS_ACCESS_TOKEN: ${{ secrets.EMAILJS_ACCESS_TOKEN }}
+          TARGET_BEACH: "Long-Beach_6"
+          SURF_FORECAST_URL: "https://www.surf-forecast.com"
         run: |
           node -e '
           const cheerio = require("cheerio");
-          const { init, send } = require("@emailjs/nodejs");
           const axios = require("axios");
 
           const COMPASS_DIRECTIONS = [
@@ -80,13 +77,14 @@ jobs:
 
           async function scrapeSurfConditions(beach) {
             try {
-              const url = `${process.env.NEXT_PUBLIC_SURF_FORECAST_URL}/breaks/${beach}/forecasts/latest/six_day`;
+              const url = `${process.env.SURF_FORECAST_URL}/breaks/${beach}/forecasts/latest/six_day`;
               console.log("Fetching from:", url);
 
               const response = await axios.get(url, {
                 headers: {
                   "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-                }
+                },
+                timeout: 30000
               });
 
               if (response.status !== 200) {
@@ -243,8 +241,22 @@ jobs:
             };
 
             // Get valid wind directions with appropriate tolerance
-            const validWindDirections = getOpposingWindDirections(wave.direction, 2); // For good conditions
-            const validPerfectWindDirections = getOpposingWindDirections(wave.direction, 1); // For perfect conditions
+            // For good conditions: any wind direction if ≤10km/h, offshore ±3 if 10-20km/h
+            let validWindDirections = [];
+            if (wind.speed <= 10) {
+              // Wind ≤10km/h: any wind direction is OK for good conditions
+              validWindDirections = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+              console.log(`Wind speed: ${wind.speed}km/h ≤10km/h, any wind direction OK for good conditions`);
+            } else if (wind.speed <= 20) {
+              // Wind 10-20km/h: offshore ±3 tolerance for good conditions
+              validWindDirections = getOpposingWindDirections(wave.direction, 3);
+              console.log(`Wind speed: ${wind.speed}km/h (10-20km/h), using offshore ±3 tolerance for good conditions`);
+            } else {
+              // Wind >20km/h: too windy for good conditions
+              validWindDirections = [];
+              console.log(`Wind speed: ${wind.speed}km/h >20km/h, too windy for good conditions`);
+            }
+            const validPerfectWindDirections = getOpposingWindDirections(wave.direction, 2); // For perfect conditions (offshore ±2)
             console.log(`Wave direction: ${wave.direction}, Valid wind directions:`, validWindDirections);
             console.log(`Perfect wind directions:`, validPerfectWindDirections);
 
@@ -307,14 +319,16 @@ jobs:
                 })
                 .join("\n");
 
-              console.log("Sending email via REST API...");
+              console.log("Sending email via EmailJS REST API...");
+              
+              // Use the correct environment variable names
               const response = await axios.post(
-                "https:\/\/api.emailjs.com\/api\/v1.0\/email\/send",
+                "https://api.emailjs.com/api/v1.0/email/send",
                 {
-                  service_id: process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
-                  template_id: process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
-                  user_id: process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY,
-                  accessToken: process.env.NEXT_PUBLIC_EMAILJS_PRIVATE_KEY,
+                  service_id: process.env.EMAILJS_SERVICE_ID,
+                  template_id: process.env.EMAILJS_TEMPLATE_ID,
+                  user_id: process.env.EMAILJS_USER_ID,
+                  accessToken: process.env.EMAILJS_ACCESS_TOKEN,
                   template_params: {
                     good_conditions: goodConditionsText
                   }
@@ -322,8 +336,9 @@ jobs:
                 {
                   headers: {
                     "content-type": "application/json",
-                    "origin": "https:\/\/api.emailjs.com"
-                  }
+                    "origin": "https://api.emailjs.com"
+                  },
+                  timeout: 30000
                 }
               );
               
@@ -331,9 +346,10 @@ jobs:
             } catch (error) {
               console.error("Error sending email:", error.response ? error.response.data : error.message);
               console.error("EmailJS configuration:", {
-                serviceId: process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID,
-                templateId: process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID,
-                publicKey: "..." + process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY.slice(-4)
+                serviceId: process.env.EMAILJS_SERVICE_ID,
+                templateId: process.env.EMAILJS_TEMPLATE_ID,
+                userId: process.env.EMAILJS_USER_ID,
+                accessToken: "..." + (process.env.EMAILJS_ACCESS_TOKEN ? process.env.EMAILJS_ACCESS_TOKEN.slice(-4) : "undefined")
               });
               throw error;
             }
@@ -342,7 +358,16 @@ jobs:
           async function main() {
             try {
               console.log("Starting surf check...");
-              const conditions = await scrapeSurfConditions(process.env.NEXT_PUBLIC_TARGET_BEACH);
+              console.log("Environment variables check:", {
+                beach: process.env.TARGET_BEACH,
+                surfUrl: process.env.SURF_FORECAST_URL,
+                emailService: process.env.EMAILJS_SERVICE_ID ? "Set" : "Not set",
+                emailTemplate: process.env.EMAILJS_TEMPLATE_ID ? "Set" : "Not set",
+                emailUser: process.env.EMAILJS_USER_ID ? "Set" : "Not set",
+                emailToken: process.env.EMAILJS_ACCESS_TOKEN ? "Set" : "Not set"
+              });
+              
+              const conditions = await scrapeSurfConditions(process.env.TARGET_BEACH);
               console.log("Scraped conditions:", conditions);
               
               if (conditions.hasGoodConditions) {

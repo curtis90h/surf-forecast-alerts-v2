@@ -12,7 +12,7 @@ export const SURF_CONDITIONS = {
       periodMax: 21,
     },
     wind: {
-      maxSpeed: 15,
+      maxSpeed: 20,
     },
   },
   perfect: {
@@ -62,12 +62,23 @@ export function isWindDirectionFavorable(swellDirection, windDirection, toleranc
   // Calculate the difference in direction (0-16)
   let diff = (windIndex - swellIndex + 16) % 16;
   
-  // Perfect offshore is 8 positions away (opposite direction)
-  // Acceptable range is 8 ± tolerance positions away
-  const minDiff = 8 - tolerance;
-  const maxDiff = 8 + tolerance;
+  // For perfect conditions: only accept offshore (opposite direction) with ±tolerance
+  // Perfect offshore is 8 positions away, acceptable range is 8 ± tolerance
+  const offshoreMinDiff = (8 - tolerance + 16) % 16;
+  const offshoreMaxDiff = (8 + tolerance + 16) % 16;
   
-  return diff >= minDiff && diff <= maxDiff;
+  // Handle the case where ranges wrap around 0
+  let isOffshore = false;
+  
+  if (offshoreMinDiff <= offshoreMaxDiff) {
+    // No wrapping
+    isOffshore = diff >= offshoreMinDiff && diff <= offshoreMaxDiff;
+  } else {
+    // Wrapping case
+    isOffshore = diff >= offshoreMinDiff || diff <= offshoreMaxDiff;
+  }
+  
+  return isOffshore;
 }
 
 export const EMAIL_CONFIG = {

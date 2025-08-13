@@ -308,8 +308,31 @@ export function areFavorableConditions(conditions, criteria) {
     }
   };
 
-  const isGood = checkFavorableConditions(conditionsObj, criteria.good, 2);
-  const isPerfect = checkFavorableConditions(conditionsObj, criteria.perfect, 1);
+  // For good conditions: any wind direction if ≤10km/h, offshore ±3 if 10-20km/h
+  let isGood = false;
+  if (conditionsObj.wind.speed <= 10) {
+    // Wind ≤10km/h: check everything except wind direction (any direction is OK)
+    const isGoodHeight = conditionsObj.wave.height >= criteria.good.waveHeight.min && 
+                        conditionsObj.wave.height <= criteria.good.waveHeight.max;
+    const isGoodDirection = criteria.good.wave.preferredDirections.includes(conditionsObj.wave.direction);
+    const isGoodPeriod = conditionsObj.wave.period >= criteria.good.wave.periodMin && 
+                        conditionsObj.wave.period <= criteria.good.wave.periodMax;
+    const isGoodWindSpeed = conditionsObj.wind.speed <= criteria.good.wind.maxSpeed;
+    
+    isGood = isGoodHeight && isGoodDirection && isGoodPeriod && isGoodWindSpeed;
+    console.log(`Wind speed: ${conditionsObj.wind.speed}km/h ≤10km/h, any wind direction OK for good conditions`);
+  } else if (conditionsObj.wind.speed <= 20) {
+    // Wind 10-20km/h: check everything including offshore ±3 wind direction
+    isGood = checkFavorableConditions(conditionsObj, criteria.good, 3);
+    console.log(`Wind speed: ${conditionsObj.wind.speed}km/h (10-20km/h), using offshore ±3 tolerance for good conditions`);
+  } else {
+    // Wind >20km/h: too windy for good conditions
+    isGood = false;
+    console.log(`Wind speed: ${conditionsObj.wind.speed}km/h >20km/h, too windy for good conditions`);
+  }
+  
+  // For perfect conditions: offshore ±2 tolerance
+  const isPerfect = checkFavorableConditions(conditionsObj, criteria.perfect, 2);
 
   return { isGood, isPerfect };
 } 

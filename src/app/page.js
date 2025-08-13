@@ -283,13 +283,13 @@ export default function Home() {
                         <div>
                           <p className="text-sm text-gray-500">Wind Speed</p>
                           <p className="text-base font-medium text-gray-900">
-                            Up to {SURF_CONDITIONS.good.wind.maxSpeed} km/h
+                            Up to 20 km/h (any direction if ≤10km/h)
                           </p>
                         </div>
                         <div>
                           <p className="text-sm text-gray-500">Wind Direction</p>
                           <p className="text-base font-medium text-gray-900">
-                            Offshore to Cross-Shore (±2 directions)
+                            Any direction if ≤10km/h, Offshore ±3 if 10-20km/h
                           </p>
                         </div>
                       </div>
@@ -343,7 +343,7 @@ export default function Home() {
                         <div>
                           <p className="text-sm text-gray-500">Wind Direction</p>
                           <p className="text-base font-medium text-gray-900">
-                            Offshore (±1 direction)
+                            Offshore (±2 directions)
                           </p>
                         </div>
                       </div>
