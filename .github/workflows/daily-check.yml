@@ -319,6 +319,146 @@ jobs:
             }
           }
 
+              if (response.status !== 200) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+
+              const html = response.data;
+              const $ = cheerio.load(html);
+              console.log("Page loaded successfully");
+
+              const periodRow = $(".forecast-table__row[data-row-name='periods']");
+              console.log("Period row found:", periodRow.length > 0);
+
+              const periodValues = [];
+              if (periodRow.length > 0) {
+                const periodCells = periodRow.find(".forecast-table__cell");
+                console.log("Period cells found:", periodCells.length);
+                
+                periodCells.each((i, cell) => {
+                  const periodText = $(cell).find("strong").text().trim();
+                  periodValues.push(parseInt(periodText) || 0);
+                });
+              }
+              console.log("Period values:", periodValues);
+
+              const waveCells = $(".forecast-table-wave-height__cell");
+              
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              
+              const detailedForecast = {
+                today: { morning: null, afternoon: null, night: null },
+                day2: { morning: null, afternoon: null, night: null },
+                day3: { morning: null, afternoon: null, night: null },
+                day4: { morning: null, afternoon: null, night: null },
+                day5: { morning: null, afternoon: null, night: null },
+                day6: { morning: null, afternoon: null, night: null },
+                day7: { morning: null, afternoon: null, night: null }
+              };
+
+              let currentWaveHeight = 0;
+              let currentWavePeriod = 0;
+              let currentWindSpeed = 0;
+              let currentWindDirection = "N/A";
+              let currentWaveDirection = "N/A";
+              
+              let hasGoodConditions = false;
+              let goodConditionsDetails = [];
+
+              waveCells.each((index, cell) => {
+                // Only process first 21 cells (7 days * 3 periods)
+                if (index >= 21) return;
+
+                const $cell = $(cell);
+                const dayIndex = Math.floor(index / 3);
+                const dayKey = dayIndex === 0 ? "today" : `day${dayIndex + 1}`;
+                const timeOfDay = index % 3 === 0 ? "morning" : index % 3 === 1 ? "afternoon" : "night";
+                
+                try {
+                  const summaryHeight = parseFloat($cell.find(".swell-icon__val").text().trim()) || 0;
+                  const direction = $cell.find(".swell-icon__letters").text().trim();
+                  const windData = JSON.parse($cell.attr("data-wind") || "{}");
+
+                  const forecastDate = new Date(today);
+                  forecastDate.setDate(today.getDate() + dayIndex);
+                  
+                  const formattedDate = forecastDate.toLocaleDateString("en-US", {
+                    weekday: "short",
+                    month: "short",
+                    day: "numeric"
+                  });
+
+                  if (index === 0) {
+                    currentWaveHeight = summaryHeight;
+                    currentWavePeriod = periodValues[0] || 0;
+                    currentWindSpeed = windData.speed || 0;
+                    currentWindDirection = windData.direction?.letters || "N/A";
+                    currentWaveDirection = direction;
+                  }
+
+                  const timeData = {
+                    wave: {
+                      height: summaryHeight,
+                      direction: direction,
+                      period: periodValues[index] || 0
+                    },
+                    wind: {
+                      speed: windData.speed || 0,
+                      direction: windData.direction?.letters || "N/A"
+                    },
+                    timestamp: forecastDate.toISOString(),
+                    formattedDate: formattedDate
+                  };
+
+                  const { isGood, isPerfect } = areFavorableConditions({
+                    waveHeight: timeData.wave.height,
+                    wavePeriod: timeData.wave.period,
+                    waveDirection: timeData.wave.direction,
+                    windSpeed: timeData.wind.speed,
+                    windDirection: timeData.wind.direction
+                  }, SURF_CONDITIONS);
+
+                  timeData.isGood = isGood;
+                  timeData.isPerfect = isPerfect;
+                  
+                  if (isGood) {
+                    hasGoodConditions = true;
+                    console.log(`Found good conditions on ${formattedDate} ${timeOfDay}:`, timeData);
+                    goodConditionsDetails.push({
+                      date: formattedDate,
+                      timeOfDay,
+                      ...timeData
+                    });
+                  }
+
+                  detailedForecast[dayKey][timeOfDay] = timeData;
+                } catch (error) {
+                  console.error(`Error parsing ${dayKey} ${timeOfDay} data:`, error);
+                }
+              });
+
+              return {
+                waveHeight: currentWaveHeight,
+                wavePeriod: currentWavePeriod,
+                waveDirection: currentWaveDirection,
+                windDirection: currentWindDirection,
+                windSpeed: currentWindSpeed,
+                timestamp: new Date().toISOString(),
+                detailedForecast,
+                hasGoodConditions,
+                goodConditionsDetails
+              };
+            } catch (error) {
+              console.error("Error scraping conditions:", error.message);
+              if (error.response) {
+                console.error("Response status:", error.response.status);
+                console.error("Response headers:", error.response.headers);
+              }
+              throw error;
+            }
+          }
+
           function areFavorableConditions(conditions, criteria) {
             const { wave, wind } = {
               wave: {
