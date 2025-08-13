@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
 import { checkSurfConditions } from '@/utils/surfCheck';
 
-// Rate limiting and caching - TEMPORARILY DISABLED FOR TESTING
-const COOLDOWN_PERIOD = 0; // TEMPORARILY DISABLED FOR TESTING
-const CACHE_DURATION = 0; // TEMPORARILY DISABLED FOR TESTING
+// Rate limiting and caching
+const COOLDOWN_PERIOD = 5 * 60 * 1000; // 5 minutes between manual checks
+const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes cache duration
 
-// Rate limiting by IP - TEMPORARILY DISABLED FOR TESTING
+// Rate limiting by IP
 const ipRequests = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 999; // TEMPORARILY DISABLED FOR TESTING
+const MAX_REQUESTS_PER_WINDOW = 10; // Max 10 requests per minute per IP
+
+// In-memory store for caching
+let lastCheckTime = 0;
+let cachedConditions = null;
+let cacheTimestamp = 0;
 
 function getClientIP(request) {
   const forwarded = request.headers.get('x-forwarded-for');
@@ -35,8 +40,9 @@ function isRateLimited(clientIP) {
 export async function GET(request) {
   try {
     const isScheduled = request.headers.get('x-scheduled') === 'true';
+    const now = Date.now();
     
-    // Rate limiting (skip for scheduled checks) - TEMPORARILY DISABLED FOR TESTING
+    // Rate limiting (skip for scheduled checks)
     if (!isScheduled) {
       const clientIP = getClientIP(request);
       if (isRateLimited(clientIP)) {
@@ -47,21 +53,48 @@ export async function GET(request) {
       }
     }
 
-    console.log('Forecast check requested');
-    
-    const result = await checkSurfConditions();
-    
-    if (!result.success) {
+    // For scheduled checks, always fetch fresh data
+    if (isScheduled) {
+      console.log('Scheduled check - fetching fresh data');
+      const result = await checkSurfConditions();
+      
+      if (result.success) {
+        return NextResponse.json(result);
+      } else {
+        throw new Error('Scheduled check failed');
+      }
+    }
+
+    // For manual checks, use cache if available and fresh
+    if (cachedConditions && (now - cacheTimestamp) < CACHE_DURATION) {
+      console.log('Returning cached conditions (age:', Math.round((now - cacheTimestamp) / 60000), 'minutes)');
       return NextResponse.json({
-        success: false,
-        error: result.error || 'Failed to check forecast'
+        success: true,
+        conditions: cachedConditions,
+        cached: true
       });
     }
 
-    // Return the data in the format the frontend expects
-    return NextResponse.json({
-      success: true,
-      conditions: {
+    // Check cooldown period for non-scheduled checks
+    if (now - lastCheckTime < COOLDOWN_PERIOD) {
+      const minutesRemaining = Math.ceil((COOLDOWN_PERIOD - (now - lastCheckTime)) / 60000);
+      return NextResponse.json({
+        success: false,
+        error: `Please wait ${minutesRemaining} minutes before checking again`,
+        cooldownRemaining: minutesRemaining
+      }, { status: 429 });
+    }
+
+    console.log('Fetching fresh conditions');
+    
+    // Update last check time
+    lastCheckTime = now;
+    
+    const result = await checkSurfConditions();
+    
+    if (result.success) {
+      // Cache the results in the format the frontend expects
+      cachedConditions = {
         // Current conditions
         waveHeight: result.conditions.waveHeight,
         wavePeriod: result.conditions.wavePeriod,
@@ -133,8 +166,16 @@ export async function GET(request) {
           };
           return acc;
         }, {}) : {}
-      }
-    });
+      };
+      cacheTimestamp = now;
+      
+      return NextResponse.json({
+        success: true,
+        conditions: cachedConditions
+      });
+    } else {
+      throw new Error('Failed to fetch conditions');
+    }
 
   } catch (error) {
     console.error('Error in forecast check:', error);
@@ -145,7 +186,4 @@ export async function GET(request) {
   }
 }
 
-export async function POST(request) {
-  const body = await request.json();
-  return handleForecastCheck(request, body.checkType === 'scheduled');
-} 
+ 
