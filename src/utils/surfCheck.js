@@ -198,7 +198,7 @@ async function scrapeSurfConditions(beach) {
 /**
  * Send email notification for good surf conditions
  */
-async function sendEmailAlert(conditions, beach) {
+async function sendEmailAlert(conditions, beach, forecastData) {
   try {
     console.log("Preparing to send email alert...");
     
@@ -214,6 +214,37 @@ async function sendEmailAlert(conditions, beach) {
     
     const { isGood, isPerfect } = conditions;
     const conditionType = isPerfect ? "PERFECT" : "GOOD";
+    
+    // Generate forecast summary for good/perfect conditions
+    let forecastSummary = '';
+    let goodConditions = [];
+    
+    if (forecastData && forecastData.length > 0) {
+      forecastData.forEach((dayData, dayIndex) => {
+        const date = dayData.date;
+        const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+        
+        ['morning', 'afternoon', 'evening'].forEach(timeSlot => {
+          if (dayData[timeSlot]) {
+            const slotData = dayData[timeSlot];
+            if (slotData.isGood || slotData.isPerfect) {
+              const timeLabel = timeSlot.charAt(0).toUpperCase() + timeSlot.slice(1);
+              const conditionLabel = slotData.isPerfect ? 'PERFECT' : 'GOOD';
+              goodConditions.push(`${dayName} ${timeLabel}: ${conditionLabel}`);
+            }
+          }
+        });
+      });
+      
+      if (goodConditions.length > 0) {
+        forecastSummary = `
+          <h3>7-Day Forecast - Good/Perfect Conditions:</h3>
+          <ul>
+            ${goodConditions.map(condition => `<li>${condition}</li>`).join('')}
+          </ul>
+        `;
+      }
+    }
     
     const mailOptions = {
       from: process.env.SMTP_USER,
@@ -232,6 +263,8 @@ async function sendEmailAlert(conditions, beach) {
           <li><strong>Wind Direction:</strong> ${conditions.windDirection}</li>
         </ul>
         
+        ${forecastSummary}
+        
         <p><em>Check time: ${new Date().toLocaleString()}</em></p>
         
         <p>Time to grab your board and hit the waves! 🏄‍♀️</p>
@@ -245,6 +278,8 @@ async function sendEmailAlert(conditions, beach) {
         - Wave Period: ${conditions.wavePeriod}s
         - Wind Speed: ${conditions.windSpeed}km/h
         - Wind Direction: ${conditions.windDirection}
+        
+        ${forecastSummary ? `\n7-Day Forecast - Good/Perfect Conditions:\n${goodConditions.map(condition => `- ${condition}`).join('\n')}` : ''}
         
         Check time: ${new Date().toLocaleString()}
         
@@ -304,7 +339,7 @@ async function checkSurfConditions() {
     // Send email if conditions are met
     if (isGood || isPerfect) {
       console.log("Good conditions detected! Sending email alert...");
-      await sendEmailAlert({ ...conditions.currentConditions, isGood, isPerfect }, beach);
+      await sendEmailAlert({ ...conditions.currentConditions, isGood, isPerfect }, beach, conditions.forecastData);
       console.log("Surf check completed successfully - email sent");
     } else {
       console.log("No good conditions detected. Surf check completed.");

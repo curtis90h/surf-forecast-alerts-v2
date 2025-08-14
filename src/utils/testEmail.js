@@ -18,11 +18,27 @@ async function testEmail() {
     
     const beach = process.env.TARGET_BEACH || 'Long-Beach_6';
     
+    // Create mock forecast data for testing
+    const mockForecastData = [
+      {
+        date: new Date(),
+        morning: { isGood: true, isPerfect: false },
+        afternoon: { isGood: false, isPerfect: true },
+        evening: { isGood: true, isPerfect: false }
+      },
+      {
+        date: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
+        morning: { isGood: true, isPerfect: false },
+        afternoon: { isGood: false, isPerfect: false },
+        evening: { isGood: false, isPerfect: false }
+      }
+    ];
+    
     console.log('Sending test email with conditions:', mockConditions);
     console.log(`To: curtis90h@gmail.com`);
     console.log(`From: ${process.env.SMTP_USER}`);
     
-    await sendEmailAlert(mockConditions, beach);
+    await sendEmailAlert(mockConditions, beach, mockForecastData);
     
     console.log('✅ Test email sent successfully!');
     console.log('Check your email at curtis90h@gmail.com');
