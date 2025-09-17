@@ -322,33 +322,70 @@ async function checkSurfConditions() {
     const beach = process.env.TARGET_BEACH;
     console.log(`Checking conditions for beach: ${beach}`);
     
-    // Scrape current conditions
+    // Scrape current conditions and 7-day forecast
     const conditions = await scrapeSurfConditions(beach);
     
-    // Evaluate conditions
-    const { isGood, isPerfect } = evaluateConditions(
-      conditions.currentConditions.waveHeight,
-      conditions.currentConditions.wavePeriod,
-      conditions.currentConditions.waveDirection,
-      conditions.currentConditions.windSpeed,
-      conditions.currentConditions.windDirection
-    );
+    // Check if ANY session in the 7-day forecast has good/perfect conditions
+    let hasGoodConditions = false;
+    let hasPerfectConditions = false;
+    let goodSessions = [];
     
-    console.log(`Conditions evaluation: Good=${isGood}, Perfect=${isPerfect}`);
+    conditions.forecastData.forEach((dayData, dayIndex) => {
+      const date = dayData.date;
+      const dayName = date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+      
+      ['morning', 'afternoon', 'evening'].forEach(timeSlot => {
+        if (dayData[timeSlot]) {
+          const slotData = dayData[timeSlot];
+          if (slotData.isGood || slotData.isPerfect) {
+            hasGoodConditions = true;
+            if (slotData.isPerfect) {
+              hasPerfectConditions = true;
+            }
+            
+            const timeLabel = timeSlot.charAt(0).toUpperCase() + timeSlot.slice(1);
+            const conditionLabel = slotData.isPerfect ? 'PERFECT' : 'GOOD';
+            goodSessions.push({
+              day: dayName,
+              time: timeLabel,
+              condition: conditionLabel,
+              isPerfect: slotData.isPerfect,
+              data: slotData
+            });
+          }
+        }
+      });
+    });
     
-    // Send email if conditions are met
-    if (isGood || isPerfect) {
-      console.log("Good conditions detected! Sending email alert...");
-      await sendEmailAlert({ ...conditions.currentConditions, isGood, isPerfect }, beach, conditions.forecastData);
+    console.log(`7-day forecast scan: Good=${hasGoodConditions}, Perfect=${hasPerfectConditions}, Sessions found: ${goodSessions.length}`);
+    
+    // Send email if ANY good/perfect conditions found in 7-day forecast
+    if (hasGoodConditions) {
+      console.log("Good/perfect conditions found in 7-day forecast! Sending email alert...");
+      
+      // Use the first good session as the "current" conditions for the email
+      const primarySession = goodSessions.find(s => s.isPerfect) || goodSessions[0];
+      const conditionType = hasPerfectConditions ? "PERFECT" : "GOOD";
+      
+      await sendEmailAlert(
+        { 
+          ...primarySession.data, 
+          isGood: hasGoodConditions, 
+          isPerfect: hasPerfectConditions 
+        }, 
+        beach, 
+        conditions.forecastData
+      );
       console.log("Surf check completed successfully - email sent");
     } else {
-      console.log("No good conditions detected. Surf check completed.");
+      console.log("No good conditions found in 7-day forecast. Surf check completed.");
     }
     
     return { 
       success: true, 
-      conditions: { ...conditions.currentConditions, isGood, isPerfect },
-      forecastData: conditions.forecastData
+      conditions: { ...conditions.currentConditions, isGood: hasGoodConditions, isPerfect: hasPerfectConditions },
+      forecastData: conditions.forecastData,
+      goodSessions: goodSessions
     };
     
   } catch (error) {
