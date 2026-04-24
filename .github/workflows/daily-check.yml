@@ -5,6 +5,7 @@ on:
     # Run at 7:30 AM Pacific Standard Time (15:30 UTC)
     - cron: '30 15 * * *'
   workflow_dispatch: # Allow manual trigger for testing this workflow
+  # Dummy commit to keep GitHub Actions active
 
 jobs:
   check-conditions:
