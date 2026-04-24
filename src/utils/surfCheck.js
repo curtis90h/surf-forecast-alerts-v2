@@ -103,15 +103,24 @@ async function scrapeSurfConditions(beach) {
 
     const html = response.data;
 
-    // Extract all swell state data (42 entries: 7 days × 3 time periods × 2 data types)
-    const swellMatches = html.match(/data-swell-state="([^"]+)"/g);
-    const windMatches = html.match(/data-wind="([^"]+)"/g);
+    // Extract all swell state data (21 entries: 7 days × 3 time periods)
+    const swellMatches = html.match(/data-swell-tooltip="([^"]+)"/g);
+    const speedMatches = html.match(/data-speed="([^"]+)"/g);
+    const windArrowMatches = html.match(/class="wind-icon__arrow"\s+transform="rotate\((-?\d+)\)"/g);
 
-    if (!swellMatches || !windMatches || swellMatches.length < 21 || windMatches.length < 21) {
+    if (!swellMatches || !speedMatches || !windArrowMatches || swellMatches.length < 21 || speedMatches.length < 21 || windArrowMatches.length < 21) {
       throw new Error("Could not extract required forecast data from the page");
     }
 
-    console.log(`Extracted ${swellMatches.length} swell entries and ${windMatches.length} wind entries`);
+    console.log(`Extracted ${swellMatches.length} swell entries and ${speedMatches.length} wind entries`);
+
+    // Helper to map angle to direction
+    const angleToDirection = (angle) => {
+      const normalized = (angle % 360 + 360) % 360;
+      const index = Math.round(normalized / 22.5) % 16;
+      const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+      return dirs[index];
+    };
 
     // Parse all the data
     const forecastData = [];
@@ -134,11 +143,19 @@ async function scrapeSurfConditions(beach) {
 
       for (let time = 0; time < 3; time++) {
         const index = day * 3 + time;
-        if (index < swellMatches.length && index < windMatches.length) {
+        if (index < swellMatches.length && index < speedMatches.length && index < windArrowMatches.length) {
           try {
             // Parse swell data
-            const swellState = JSON.parse(swellMatches[index].replace(/data-swell-state="([^"]+)"/, '$1').replace(/&quot;/g, '"'));
-            const windData = JSON.parse(windMatches[index].replace(/data-wind="([^"]+)"/, '$1').replace(/&quot;/g, '"'));
+            const swellStateData = JSON.parse(swellMatches[index].replace(/data-swell-tooltip="([^"]+)"/, '$1').replace(/&quot;/g, '"'));
+            const swellState = swellStateData.swells || [];
+
+            // Get wind speed
+            const windSpeed = parseFloat(speedMatches[index].replace(/data-speed="([^"]+)"/, '$1')) || 0;
+            
+            // Get wind direction
+            const windAngleMatch = windArrowMatches[index].match(/rotate\((-?\d+)\)/);
+            const windAngle = windAngleMatch ? parseInt(windAngleMatch[1], 10) : 0;
+            const windDirection = angleToDirection(windAngle);
 
             // Get the primary swell (highest height)
             const primarySwell = swellState.reduce((max, swell) =>
@@ -150,8 +167,8 @@ async function scrapeSurfConditions(beach) {
               waveHeight: primarySwell.height,
               wavePeriod: primarySwell.period,
               waveDirection: primarySwell.letters,
-              windSpeed: windData.speed || 0,
-              windDirection: windData.direction?.letters || "N/A",
+              windSpeed: windSpeed,
+              windDirection: windDirection,
               timestamp: new Date().toISOString()
             };
 
