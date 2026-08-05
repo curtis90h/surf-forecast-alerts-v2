@@ -9,6 +9,7 @@
     "lint": "next lint",
     "surf-check": "node src/utils/surfCheck.js",
     "surf-check:test": "node src/utils/testSurfCheck.js",
+    "test:wind-direction": "node src/utils/testWindDirection.js",
     "surf-check:cron": "node src/utils/cronJob.js",
     "test-email": "node src/utils/testEmail.js"
   },

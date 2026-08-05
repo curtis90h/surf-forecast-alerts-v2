@@ -1,6 +1,7 @@
 require('dotenv').config({ path: '.env.local' });
 const axios = require("axios");
 const nodemailer = require("nodemailer");
+const { windArrowAngleToDirection } = require('./windDirection');
 
 // Surf condition criteria
 const SURF_CRITERIA = {
@@ -114,14 +115,6 @@ async function scrapeSurfConditions(beach) {
 
     console.log(`Extracted ${swellMatches.length} swell entries and ${speedMatches.length} wind entries`);
 
-    // Helper to map angle to direction
-    const angleToDirection = (angle) => {
-      const normalized = (angle % 360 + 360) % 360;
-      const index = Math.round(normalized / 22.5) % 16;
-      const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
-      return dirs[index];
-    };
-
     // Parse all the data
     const forecastData = [];
     const timePeriods = ['morning', 'afternoon', 'evening'];
@@ -155,7 +148,7 @@ async function scrapeSurfConditions(beach) {
             // Get wind direction
             const windAngleMatch = windArrowMatches[index].match(/rotate\((-?\d+)\)/);
             const windAngle = windAngleMatch ? parseInt(windAngleMatch[1], 10) : 0;
-            const windDirection = angleToDirection(windAngle);
+            const windDirection = windArrowAngleToDirection(windAngle);
 
             // Get the primary swell (highest height)
             const primarySwell = swellState.reduce((max, swell) =>
