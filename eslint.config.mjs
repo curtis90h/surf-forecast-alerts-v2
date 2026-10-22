@@ -1,14 +1,15 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-const eslintConfig = [...compat.extends("next/core-web-vitals")];
+/**
+ * Flat config (eslint 9). eslint-config-next 16 ships a native flat config
+ * array, so it is imported directly — wrapping it in FlatCompat breaks it.
+ * `next lint` was removed in Next 16, so the lint script runs eslint directly.
+ */
+const eslintConfig = [
+  ...nextCoreWebVitals,
+  {
+    ignores: [".next/**", "node_modules/**", "next-env.d.ts"],
+  },
+];
 
 export default eslintConfig;
